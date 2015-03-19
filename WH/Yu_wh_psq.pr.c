@@ -15,7 +15,7 @@
 
 
 /* This variable carries the header into the object file */
-const char Yu_wh_psq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 5509C02E 5509C02E 1 ECE-PHO305-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
+const char Yu_wh_psq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 5509EF46 5509EF46 1 ECE-PHO305-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
 #include <string.h>
 
 
@@ -53,7 +53,8 @@ const char Yu_wh_psq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 5509C02E 550
 #define SRC_ARRVL (ev_type == OPC_INTRPT_STRM && ev_strm == SRC_IN_STRM)
 #define RCV_ARRVL (ev_type == OPC_INTRPT_STRM && ev_strm == RCV_IN_STRM)
 
-
+// definition of statistics parameters
+#define DIFFERENCE_THRESHOULD 0.1
 
 /* End of Header Block */
 
@@ -118,14 +119,14 @@ void discard_rcv_queue(void){
 }
 
 
-
-
 void deal_with_statistics(Packet * pkptr){
 	double ete_delay;
 	
 	FIN(deal_with_statistics());
 	ete_delay = op_sim_time () - op_pk_creation_time_get (pkptr);
     op_stat_write (ete_gsh, ete_delay);
+	
+	// accumulate the cumulative averrage, if the difference is within threshould, then end the simulation
 
 	FOUT;
 }
@@ -137,9 +138,6 @@ void receive_flit_in_squeue(void){
 	
 	pkptr = op_pk_get(op_intrpt_strm());
 	
-	// get teh statistics data
-	deal_with_statistics(pkptr);
-	
 	// insert into the receiving queue
 	op_subq_pk_insert(0, pkptr, OPC_QPOS_TAIL);
 	
@@ -148,18 +146,19 @@ void receive_flit_in_squeue(void){
 	
 	
 	if(flit_type == Flit_Type_Dest_Addr) {
-	// if the flit is destination address flit, then 
-	
+		// if the flit is destination address flit, then 
+		// trigger a remote intrrupt to the source node, trigger DEST_ARRIVAL
 	
 	
 	} else if (flit_type == Flit_Type_Src_Addr) {
-	// if the flit contains source address, then trigger remote intrrupt to PGQueue
-	// of the source node
+		// if the flit contains source address, then trigger remote intrrupt to PGQueue
+		// of the source node
 	
 	} else if (flit_type == Flit_Type_Tail) {
-	// if the flit is a tail, then discard the flits in the receiving queue
-	
-	discard_rcv_queue();
+		// if the flit is a tail, then discard the flits in the receiving queue
+		// get teh statistics data
+		deal_with_statistics(pkptr);
+		discard_rcv_queue();
 	}
 	
 	
