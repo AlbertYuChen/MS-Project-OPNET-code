@@ -15,7 +15,7 @@
 
 
 /* This variable carries the header into the object file */
-const char Yu_wh_pgq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 550B38C5 550B38C5 1 ECE-PHO305-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
+const char Yu_wh_pgq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 550CD02B 550CD02B 1 ECE-PHO305-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
 #include <string.h>
 
 
@@ -71,8 +71,8 @@ const char Yu_wh_pgq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 550B38C5 550
 #define PGQ_to_Router_Channel 0
 
 // Status of Sent_TF_or_not
-#define Do_Send_TF 1
-#define Dont_Send_TF 0
+#define Did_Send_TF 1
+#define Didnt_Send_TF 0
 
 // status of Being_Trans_or_Not
 #define Being_Trans 1
@@ -81,32 +81,9 @@ const char Yu_wh_pgq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 550B38C5 550
 // define FLIT_TRANSTER_TIME
 #define FLIT_TRANSTER_TIME 0.00083333333
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// define status of TF_Sch_TimeOut
+#define TF_Sch_TimeOut_TRUE 1
+#define TF_Sch_TimeOut_FALSE 0
 
 
 
@@ -133,6 +110,7 @@ typedef struct
 	char	                   		Being_Trans_or_Not                              ;
 	char	                   		Router_Ready_Statewire                          ;
 	char	                   		Sent_TF_or_not                                  ;
+	char	                   		TF_Sch_TimeOut                                  ;
 	Distribution *	         		Dest_Node_Number_Distr                          ;
 	Distribution *	         		Inter_Arrival_Distr                             ;
 	Distribution *	         		Worm_Len_Distr                                  ;
@@ -142,19 +120,18 @@ typedef struct
 	int	                    		Ave_Worm_Gen_Len                                ;
 	int	                    		Dest_Node_Number                                ;
 	int	                    		In_Port                                         ;
-	int	                    		My_Total_Node_Num                               ;
 	int	                    		Num_Flits_Left_to_Send                          ;
 	int	                    		Out_Port                                        ;
 	int	                    		This_Node_Number                                ;
 	int	                    		Total_Node_Num                                  ;
-	int	                    		Worm_Gen_Len                                    ;
 	int	                    		Worm_Counter                                    ;
-	char	                   		Waiting_TF                                      ;
+	int	                    		Worm_Gen_Len                                    ;
 	} Yu_wh_pgq_state;
 
 #define Being_Trans_or_Not      		op_sv_ptr->Being_Trans_or_Not
 #define Router_Ready_Statewire  		op_sv_ptr->Router_Ready_Statewire
 #define Sent_TF_or_not          		op_sv_ptr->Sent_TF_or_not
+#define TF_Sch_TimeOut          		op_sv_ptr->TF_Sch_TimeOut
 #define Dest_Node_Number_Distr  		op_sv_ptr->Dest_Node_Number_Distr
 #define Inter_Arrival_Distr     		op_sv_ptr->Inter_Arrival_Distr
 #define Worm_Len_Distr          		op_sv_ptr->Worm_Len_Distr
@@ -164,14 +141,12 @@ typedef struct
 #define Ave_Worm_Gen_Len        		op_sv_ptr->Ave_Worm_Gen_Len
 #define Dest_Node_Number        		op_sv_ptr->Dest_Node_Number
 #define In_Port                 		op_sv_ptr->In_Port
-#define My_Total_Node_Num       		op_sv_ptr->My_Total_Node_Num
 #define Num_Flits_Left_to_Send  		op_sv_ptr->Num_Flits_Left_to_Send
 #define Out_Port                		op_sv_ptr->Out_Port
 #define This_Node_Number        		op_sv_ptr->This_Node_Number
 #define Total_Node_Num          		op_sv_ptr->Total_Node_Num
-#define Worm_Gen_Len            		op_sv_ptr->Worm_Gen_Len
 #define Worm_Counter            		op_sv_ptr->Worm_Counter
-#define Waiting_TF              		op_sv_ptr->Waiting_TF
+#define Worm_Gen_Len            		op_sv_ptr->Worm_Gen_Len
 
 /* These macro definitions will define a local variable called	*/
 /* "op_sv_ptr" in each function containing a FIN statement.	*/
@@ -228,12 +203,10 @@ void schedule_tf(void){
 	// when the head arrives the destination
 	if (Num_Flits_Left_to_Send > 0 && Dest_Node_Number == rmt_tf_intpt_code) {
 		remaining_time = Num_Flits_Left_to_Send * FLIT_TRANSTER_TIME;
-		Num_Flits_Left_to_Send = 1;
-		Waiting_TF = 1;
+		TF_Sch_TimeOut = TF_Sch_TimeOut_FALSE;
 		op_intrpt_schedule_self(op_sim_time() + remaining_time, TAIL_FLIT_INTRPT_CODE);
 	} else if(Num_Flits_Left_to_Send > 0 && Dest_Node_Number != rmt_tf_intpt_code) {
 		printf("receive unexpected remote intrpt from node:%d\n", rmt_tf_intpt_code);
-	
 	}
 	
 	pkptr = generate_flit(Flit_Type_Tail, 11);
@@ -246,21 +219,22 @@ void schedule_tf(void){
 void generate_message(void){
 	Packet * pkptr;
 	int data_flits_length;
-//	int tmp_type;
-//	int tmp_data;
+	int gen_Dest_Node_Number;
+	int tmp_type;
+	int tmp_data;
 	
 	FIN(generate_message());
 	
 	do {
-		Dest_Node_Number = (int)op_dist_outcome(Dest_Node_Number_Distr);
-	}while(Dest_Node_Number == This_Node_Number);
+		gen_Dest_Node_Number = (int)op_dist_outcome(Dest_Node_Number_Distr);
+	}while(gen_Dest_Node_Number == This_Node_Number);
 	
 	if (op_prg_odb_ltrace_active ("DN") == OPC_TRUE){
-		printf("node%d: dest node: %d\n", This_Node_Number, Dest_Node_Number);
+		printf("node%d: dest node: %d\n", This_Node_Number, gen_Dest_Node_Number);
 	}
 	
 	// generate destination flit
-	pkptr = generate_flit(Flit_Type_Dest_Addr, Dest_Node_Number);
+	pkptr = generate_flit(Flit_Type_Dest_Addr, gen_Dest_Node_Number);
 	op_subq_pk_insert(0, pkptr, OPC_QPOS_TAIL);
 	
 	// source node flit
@@ -273,7 +247,11 @@ void generate_message(void){
 	pkptr = generate_flit(Flit_Type_Worm_Length, Worm_Gen_Len);
 	op_subq_pk_insert(0, pkptr, OPC_QPOS_TAIL);
 	
-	// data flits
+	/*
+	data flits, for faster simulation, data flits and tail flit 
+	are generated in real time rather than putting them in queue
+	*/
+	/*
 	for(;data_flits_length > 0; data_flits_length--) {
 		pkptr = generate_flit(Flit_Type_Data_Flit, data_flits_length);
 		op_subq_pk_insert(0, pkptr, OPC_QPOS_TAIL);
@@ -282,6 +260,7 @@ void generate_message(void){
 	// Tail Flit
 	pkptr = generate_flit(Flit_Type_Tail, This_Node_Number);
 	op_subq_pk_insert(0, pkptr, OPC_QPOS_TAIL);
+	*/
 	
 	Worm_Counter++;
 	
@@ -290,7 +269,6 @@ void generate_message(void){
 			This_Node_Number, op_subq_stat (0, OPC_QSTAT_PKSIZE), Worm_Counter);
 	}
 	
-	/*
 	if (op_prg_odb_ltrace_active ("Q") == OPC_TRUE){
 		while(pkptr != NULL) {
 			op_pk_nfd_get(pkptr, "type", &tmp_type);
@@ -299,26 +277,29 @@ void generate_message(void){
 			pkptr = get_pk_in_queue();
 		}
 	}
-	*/
 	
-	// check whether to send to router
-	// when finish generating a message, get ready to send the message head.
-	// only send the head to the router as other ports. If the port is free, then starting sending whole message
+	/*
+	check whether to send to router
+	when finish generating a message, get ready to send the message head.
+	only send the head to the router as other ports. If the port is free, 
+	then starting sending whole message
+	*/
 	if(Being_Trans_or_Not == Not_Being_Trans) {
 		pkptr = get_pk_in_queue();
 		if(pkptr != NULL) {
 			Being_Trans_or_Not = Being_Trans;
+			Dest_Node_Number = gen_Dest_Node_Number;
 			op_pk_send(pkptr, PGQ_to_Router_Channel);
 			Num_Flits_Left_to_Send = Worm_Gen_Len - 1;
-			Sent_TF_or_not = Dont_Send_TF;
+			
+			// if the dest node head flit is sent, the tail can't be sent right now.
+			Sent_TF_or_not = Didnt_Send_TF;
 		}
 	}
 	
 	// schedule the next message
 	Inter_Arrival_Time = op_dist_outcome(Inter_Arrival_Distr);	
-	//op_intrpt_schedule_self (op_sim_time () + Inter_Arrival_Time, GEN_MSG_INTRPT_CODE);
-	
-	
+	op_intrpt_schedule_self (op_sim_time () + Inter_Arrival_Time, GEN_MSG_INTRPT_CODE);
 
 	FOUT;
 }
@@ -327,28 +308,78 @@ void send_next_flit(){
 	Packet * pkptr;
 	
 	int intrpt_code;
+	int tmp_data;
+	int tmp_type;
 	
 	FIN(send_next_flit());
 	
 	intrpt_code = op_intrpt_code();
 	
-	if (op_subq_empty(0) == OPC_FALSE){
-		pkptr = op_subq_pk_remove(0, OPC_QPOS_HEAD);
-	}else {
-		pkptr = generate_flit(Flit_Type_Data_Flit, 11);
-	}
-	
-	
-	if (Num_Flits_Left_to_Send == 1 && Waiting_TF == 1) {
+	// when the tail flit has been sent, need to start sending a new message if possible
+	if(Sent_TF_or_not == Did_Send_TF){
+		Sent_TF_or_not = Didnt_Send_TF;
+		Being_Trans_or_Not = Not_Being_Trans;
 		
-		op_pk_send(pkptr, PGQ_to_Router_Channel);
+		// if there are other worms left in the queue, then start sending them
+		if(Worm_Counter > 0){
+			pkptr = get_pk_in_queue();
+			if (!pkptr) {
+				op_pk_nfd_get(pkptr, "type", &tmp_type);
+				op_pk_nfd_get(pkptr, "data", &tmp_data);
+				op_pk_send(pkptr, PGQ_to_Router_Channel);
+				Dest_Node_Number = tmp_data;
+				
+				Num_Flits_Left_to_Send = Worm_Gen_Len - 1;
+				Being_Trans_or_Not = Being_Trans;
+			}
+		}
+	} 
+	// if the worm is in processing, then continue
+	else if (Worm_Counter > 0){
+		// if the next flit is source head flit or worm length flit, then extract from the queue
+		if(Num_Flits_Left_to_Send == Worm_Gen_Len - 1 || Num_Flits_Left_to_Send == Worm_Gen_Len - 2){
+			pkptr = get_pk_in_queue();
+			op_pk_send(pkptr, PGQ_to_Router_Channel);
+			Num_Flits_Left_to_Send--;
+		}
+		/* 
+		when the scheduled interrupt times out, send the tail flit here
+		Once receive remote intrpt of schedul_TF, send TF ASAP
+		*/
+		else if(Num_Flits_Left_to_Send == TF_Sch_TimeOut_TRUE){
+			// only left the tail, and only triggered when received the remote interrupt
+			if (TF_Sch_TimeOut == TF_Sch_TimeOut_TRUE) {
+				Worm_Counter--;
+				// after sending the tail flit, the transmission shall be hang up
+				Being_Trans_or_Not = Not_Being_Trans;
+				Num_Flits_Left_to_Send = 0;
+				Sent_TF_or_not = Did_Send_TF;
+			
+				// currently, there's no node to send worm to
+				Dest_Node_Number = -1;
+
+				// the tail flit is generated here, not in the queue, in order to save the RAM
+				pkptr = generate_flit(Flit_Type_Tail, This_Node_Number);
+				op_pk_send(pkptr, PGQ_to_Router_Channel);
+			}
+		} 
+		/* 
+		generate the data flit here, this is a heuristic way for simulation,
+		actually data flits are supposed to be read from the queue, however,
+		in order to improve the performance of simulator, we generate the data flits
+		here. and that's the same thing for the tail flit.
+		*/
+		else{
+			Num_Flits_Left_to_Send--;
+			pkptr = generate_flit(Flit_Type_Data_Flit, Num_Flits_Left_to_Send);
+			op_pk_send(pkptr, PGQ_to_Router_Channel);
+		}
 	}
-	
 	
 	FOUT;
 }
 
-static void initialize_gen(void){
+void initialize_PGQ(void){
 
 	Objid myObjid, parentObjid;
 	char parentname[64];
@@ -382,12 +413,8 @@ static void initialize_gen(void){
 	Total_Node_Num = atoi(nToken);
 	fclose(Rinfile);
 	
-	if (op_prg_odb_ltrace_active ("FILE") == OPC_TRUE){
+	if (op_prg_odb_ltrace_active ("PGQFILE") == OPC_TRUE){
 		printf("FILE %d\n", Total_Node_Num);
-	}
-	
-	
-	if (op_prg_odb_ltrace_active ("Nnum") == OPC_TRUE){
 		printf("node: %s, %d\n", parentname , This_Node_Number);
 	}
 	
@@ -404,12 +431,12 @@ static void initialize_gen(void){
 	op_ima_obj_attr_get (myObjid, "Worm_Gen_Len", &Ave_Worm_Gen_Len);
 	Worm_Len_Distr = op_dist_load("uniform_int", Ave_Worm_Gen_Len, Ave_Worm_Gen_Len);
 	
-	if (op_prg_odb_ltrace_active ("IAT") == OPC_TRUE){
+	if (op_prg_odb_ltrace_active ("iat") == OPC_TRUE){
 		printf("Inter_Arrival_Time: %f\n", Inter_Arrival_Time);
 	}
 	
 	if (This_Node_Number == 0) {
-	op_intrpt_schedule_self (op_sim_time () +  Inter_Arrival_Time, GEN_MSG_INTRPT_CODE);
+	// op_intrpt_schedule_self (op_sim_time () +  Inter_Arrival_Time, GEN_MSG_INTRPT_CODE);
 	}
 		
 	FOUT;
@@ -430,7 +457,9 @@ void PGQ_handle_time_out(void){
 		if (op_prg_odb_ltrace_active ("SelfIntr1") == OPC_TRUE){
 			printf("node%d: self intrpt TAIL_FLIT_INTRPT_CODE\n", This_Node_Number);
 		}
-		Waiting_TF = 0;
+		// Once receive remote intrpt of schedul_TF, send TF ASAP
+		TF_Sch_TimeOut = TF_Sch_TimeOut_TRUE;
+		Num_Flits_Left_to_Send = 1;
 		send_next_flit();
 		break;
 		
@@ -445,7 +474,6 @@ void PGQ_handle_time_out(void){
 		default:
 		break;
 	}
-	
 	
 	FOUT;
 }
@@ -521,20 +549,8 @@ Yu_wh_pgq (OP_SIM_CONTEXT_ARG_OPT)
 			FSM_STATE_ENTER_FORCED_NOLABEL (0, "init", "Yu_wh_pgq [init enter execs]")
 				FSM_PROFILE_SECTION_IN ("Yu_wh_pgq [init enter execs]", state0_enter_exec)
 				{
-				// read in the values for the run-time attributes
 				
-				
-				
-				// generate a self interrupt here to send a message
-				
-				
-				// get this node address
-				//this_node_address = op_id_self();
-				
-				
-				
-				
-				initialize_gen();
+				initialize_PGQ();
 				}
 				FSM_PROFILE_SECTION_OUT (state0_enter_exec)
 
@@ -624,6 +640,7 @@ _op_Yu_wh_pgq_terminate (OP_SIM_CONTEXT_ARG_OPT)
 #undef Being_Trans_or_Not
 #undef Router_Ready_Statewire
 #undef Sent_TF_or_not
+#undef TF_Sch_TimeOut
 #undef Dest_Node_Number_Distr
 #undef Inter_Arrival_Distr
 #undef Worm_Len_Distr
@@ -633,14 +650,12 @@ _op_Yu_wh_pgq_terminate (OP_SIM_CONTEXT_ARG_OPT)
 #undef Ave_Worm_Gen_Len
 #undef Dest_Node_Number
 #undef In_Port
-#undef My_Total_Node_Num
 #undef Num_Flits_Left_to_Send
 #undef Out_Port
 #undef This_Node_Number
 #undef Total_Node_Num
-#undef Worm_Gen_Len
 #undef Worm_Counter
-#undef Waiting_TF
+#undef Worm_Gen_Len
 
 #undef FIN_PREAMBLE_DEC
 #undef FIN_PREAMBLE_CODE
@@ -712,6 +727,11 @@ _op_Yu_wh_pgq_svar (void * gen_ptr, const char * var_name, void ** var_p_ptr)
 		*var_p_ptr = (void *) (&prs_ptr->Sent_TF_or_not);
 		FOUT
 		}
+	if (strcmp ("TF_Sch_TimeOut" , var_name) == 0)
+		{
+		*var_p_ptr = (void *) (&prs_ptr->TF_Sch_TimeOut);
+		FOUT
+		}
 	if (strcmp ("Dest_Node_Number_Distr" , var_name) == 0)
 		{
 		*var_p_ptr = (void *) (&prs_ptr->Dest_Node_Number_Distr);
@@ -757,11 +777,6 @@ _op_Yu_wh_pgq_svar (void * gen_ptr, const char * var_name, void ** var_p_ptr)
 		*var_p_ptr = (void *) (&prs_ptr->In_Port);
 		FOUT
 		}
-	if (strcmp ("My_Total_Node_Num" , var_name) == 0)
-		{
-		*var_p_ptr = (void *) (&prs_ptr->My_Total_Node_Num);
-		FOUT
-		}
 	if (strcmp ("Num_Flits_Left_to_Send" , var_name) == 0)
 		{
 		*var_p_ptr = (void *) (&prs_ptr->Num_Flits_Left_to_Send);
@@ -782,19 +797,14 @@ _op_Yu_wh_pgq_svar (void * gen_ptr, const char * var_name, void ** var_p_ptr)
 		*var_p_ptr = (void *) (&prs_ptr->Total_Node_Num);
 		FOUT
 		}
-	if (strcmp ("Worm_Gen_Len" , var_name) == 0)
-		{
-		*var_p_ptr = (void *) (&prs_ptr->Worm_Gen_Len);
-		FOUT
-		}
 	if (strcmp ("Worm_Counter" , var_name) == 0)
 		{
 		*var_p_ptr = (void *) (&prs_ptr->Worm_Counter);
 		FOUT
 		}
-	if (strcmp ("Waiting_TF" , var_name) == 0)
+	if (strcmp ("Worm_Gen_Len" , var_name) == 0)
 		{
-		*var_p_ptr = (void *) (&prs_ptr->Waiting_TF);
+		*var_p_ptr = (void *) (&prs_ptr->Worm_Gen_Len);
 		FOUT
 		}
 	*var_p_ptr = (void *)OPC_NIL;

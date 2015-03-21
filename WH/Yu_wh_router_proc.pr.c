@@ -15,7 +15,7 @@
 
 
 /* This variable carries the header into the object file */
-const char Yu_wh_router_proc_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 550B2E97 550B2E97 1 ECE-PHO305-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
+const char Yu_wh_router_proc_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 550CD039 550CD039 1 ECE-PHO305-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
 #include <string.h>
 
 
@@ -27,9 +27,17 @@ const char Yu_wh_router_proc_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 550B
 
 /* Header Block */
 
+// include files
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <string.h>
+#include <direct.h>
 
+// define FLIT_ARRIVAL, stream interrupt within the node
 #define FLIT_ARRIVAL (op_intrpt_type () == OPC_INTRPT_STRM)
 
+// check the adjacent nodes
 #define SA_FLIT (op_intrpt_type () == OPC_INTRPT_STRM)
 
 // ACK remote intrpt from adjacent node
@@ -63,18 +71,14 @@ const char Yu_wh_router_proc_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 550B
 // handler swire when PSQueue is ready
 #define HANDLE_SWIRE SWIRE_handler();
 
+// 
 #define HANDLE_TIMER router_handle_time_out();
 
-
-/* packet stream definitions */
-#define RCV_IN_STRM 0
-#define SRC_IN_STRM 1
-#define XMT_OUT_STRM 0
-
-/* transition macros */
-#define SRC_ARRVL (ev_type == OPC_INTRPT_STRM && ev_strm == SRC_IN_STRM)
-#define RCV_ARRVL (ev_type == OPC_INTRPT_STRM && ev_strm == RCV_IN_STRM)
-
+/*
+define the interrupt codes here
+*/
+#define SA_FLIT_INTRPT_CODE 1000
+#define ID_DONE_INTRPT_CODE 1001
 
 
 
@@ -103,11 +107,19 @@ typedef struct
 	FSM_SYS_STATE
 	/* State Variables */
 	int	                    		port_number                                     ;
-	int	                    		node_ID_self                                    ;
+	int	                    		This_Node_Number                                ;
+	int	                    		In_Node_Number                                  ;
+	int	                    		Out_Node_Number                                 ;
+	int	                    		My_Total_Node_Num                               ;
+	int	                    		Total_Node_Num                                  ;
 	} Yu_wh_router_proc_state;
 
 #define port_number             		op_sv_ptr->port_number
-#define node_ID_self            		op_sv_ptr->node_ID_self
+#define This_Node_Number        		op_sv_ptr->This_Node_Number
+#define In_Node_Number          		op_sv_ptr->In_Node_Number
+#define Out_Node_Number         		op_sv_ptr->Out_Node_Number
+#define My_Total_Node_Num       		op_sv_ptr->My_Total_Node_Num
+#define Total_Node_Num          		op_sv_ptr->Total_Node_Num
 
 /* These macro definitions will define a local variable called	*/
 /* "op_sv_ptr" in each function containing a FIN statement.	*/
@@ -126,13 +138,85 @@ typedef struct
 enum { _op_block_origin = __LINE__ + 2};
 #endif
 
+Packet * r_generate_flit(int type, int data){
+	Packet * pkptr;
+	
+	FIN(generate_flit());
+	
+	pkptr = op_pk_create_fmt("Yu_wh_pkformat");
+	op_pk_nfd_set(pkptr, "type", type);
+	op_pk_nfd_set(pkptr, "data", data);
+	
+	FRET(pkptr);
+}
 
+void initialize_router(void){
+	
+	Packet * pkptr;
+	Objid myObjid, parentObjid;
+	char parentname[64];
+	char RName[128];
+	FILE * Rinfile;
+	char lbuf[128];
+	char * nToken;
+	int Max_Pt_Num;
+	int pt;
+	
+	FIN(initialize_router());
+		
+	// get the local node number
+	myObjid = op_id_self();
+	parentObjid = op_topo_parent (myObjid);
+	op_ima_obj_attr_get (parentObjid, "name", &parentname);
+	This_Node_Number = atoi(&parentname[5]);
+	
+	// get the routing table file path
+	sprintf(RName, "C:\\Users\\chenyua\\OPNET_Project\\WH\\ARnode_%d.txt", This_Node_Number);
+	if (!(Rinfile = fopen(RName, "r"))) {
+		printf("initialize_gen: could not find file");
+		exit(-2);
+	}
+	
+	fgets(lbuf, 127, Rinfile);
+	nToken = strtok(lbuf, " \t\n");
+	Total_Node_Num = atoi(nToken);
+	fclose(Rinfile);
+	
+	// send the source head flit to adjacent nodes, they will get the connection status
+	if (op_prg_odb_ltrace_active ("RFILE") == OPC_TRUE){
+		printf("FILE %d\n", Total_Node_Num);
+		printf("node: %s, %d\n", parentname , This_Node_Number);
+	
+		op_ima_obj_attr_get (myObjid, "R_Pt_Num", &Max_Pt_Num);
+	
+		//if (This_Node_Number == 0) {
+			for (pt = 1; pt < Max_Pt_Num; pt++) {
+				pkptr = r_generate_flit(Flit_Type_Src_Addr, This_Node_Number);				
+				op_pk_send(pkptr, pt);
+			}
+		//}
+	}
+	FOUT;
+}
 
 // get node attribution in Identify state
 void get_id_stream(void) {
 
+	Packet * pkptr;
+	int type;
+	int data;
+
 	FIN(get_id_stream());
-		
+	pkptr = op_pk_get (op_intrpt_strm ());
+	op_pk_nfd_get(pkptr, "type", &type);
+	op_pk_nfd_get(pkptr, "data", &data);
+	printf("RRR%d\n", This_Node_Number);
+	
+	if (op_prg_odb_ltrace_active ("SA") == OPC_TRUE){
+		printf("R_Node%d receive: type:%d data:%d\n", This_Node_Number, type, data);
+			
+	}
+
 	// get the neighbors ID
 	// send source address flit to all neighbours and wait for the response
 	// pkptr = generate_flit(Flit_Type_Src_Addr, node_ID_self);
@@ -182,7 +266,9 @@ void flit_handler(void){
 	op_pk_nfd_get(pkptr, "type", &tmp_type);
 	op_pk_nfd_get(pkptr, "data", &tmp_data);
 	
-	printf("node: %d got flit type:%d data:%d\n\n", This_Node_Number, tmp_type, tmp_data);
+	if (op_prg_odb_ltrace_active ("LS") == OPC_TRUE){
+		printf("node: %d got flit type:%d data:%d\n\n", This_Node_Number, tmp_type, tmp_data);
+	}
 	
 	// call other procedures that handle individual flit types
 	if(flit_type == Flit_Type_Dest_Addr) {
@@ -322,8 +408,8 @@ Yu_wh_router_proc (OP_SIM_CONTEXT_ARG_OPT)
 			FSM_STATE_ENTER_FORCED_NOLABEL (0, "Init", "Yu_wh_router_proc [Init enter execs]")
 				FSM_PROFILE_SECTION_IN ("Yu_wh_router_proc [Init enter execs]", state0_enter_exec)
 				{
-				// get the self node ID
-				node_ID_self = op_id_self ();
+				
+				initialize_router();
 				}
 				FSM_PROFILE_SECTION_OUT (state0_enter_exec)
 
@@ -339,6 +425,11 @@ Yu_wh_router_proc (OP_SIM_CONTEXT_ARG_OPT)
 
 			/** state (Identify) enter executives **/
 			FSM_STATE_ENTER_UNFORCED (1, "Identify", state1_enter_exec, "Yu_wh_router_proc [Identify enter execs]")
+				FSM_PROFILE_SECTION_IN ("Yu_wh_router_proc [Identify enter execs]", state1_enter_exec)
+				{
+				// printf("ENTER IDentify!\n");
+				}
+				FSM_PROFILE_SECTION_OUT (state1_enter_exec)
 
 			/** blocking after enter executives of unforced state. **/
 			FSM_EXIT (3,"Yu_wh_router_proc")
@@ -368,6 +459,11 @@ Yu_wh_router_proc (OP_SIM_CONTEXT_ARG_OPT)
 
 			/** state (Listening) enter executives **/
 			FSM_STATE_ENTER_UNFORCED (2, "Listening", state2_enter_exec, "Yu_wh_router_proc [Listening enter execs]")
+				FSM_PROFILE_SECTION_IN ("Yu_wh_router_proc [Listening enter execs]", state2_enter_exec)
+				{
+				// printf("ENTER Listening!\n");
+				}
+				FSM_PROFILE_SECTION_OUT (state2_enter_exec)
 
 			/** blocking after enter executives of unforced state. **/
 			FSM_EXIT (5,"Yu_wh_router_proc")
@@ -402,7 +498,7 @@ Yu_wh_router_proc (OP_SIM_CONTEXT_ARG_OPT)
 			}
 
 
-		FSM_EXIT (2,"Yu_wh_router_proc")
+		FSM_EXIT (0,"Yu_wh_router_proc")
 		}
 	}
 
@@ -437,7 +533,11 @@ _op_Yu_wh_router_proc_terminate (OP_SIM_CONTEXT_ARG_OPT)
 /* syntax error in direct access to fields of */
 /* local variable prs_ptr in _op_Yu_wh_router_proc_svar function. */
 #undef port_number
-#undef node_ID_self
+#undef This_Node_Number
+#undef In_Node_Number
+#undef Out_Node_Number
+#undef My_Total_Node_Num
+#undef Total_Node_Num
 
 #undef FIN_PREAMBLE_DEC
 #undef FIN_PREAMBLE_CODE
@@ -453,7 +553,7 @@ _op_Yu_wh_router_proc_init (int * init_block_ptr)
 
 	obtype = Vos_Define_Object_Prstate ("proc state vars (Yu_wh_router_proc)",
 		sizeof (Yu_wh_router_proc_state));
-	*init_block_ptr = 4;
+	*init_block_ptr = 0;
 
 	FRET (obtype)
 	}
@@ -472,7 +572,7 @@ _op_Yu_wh_router_proc_alloc (VosT_Obtype obtype, int init_block)
 		{
 		ptr->_op_current_block = init_block;
 #if defined (OPD_ALLOW_ODB)
-		ptr->_op_current_state = "Yu_wh_router_proc [Listening enter execs]";
+		ptr->_op_current_state = "Yu_wh_router_proc [Init enter execs]";
 #endif
 		}
 	FRET ((VosT_Address)ptr)
@@ -499,9 +599,29 @@ _op_Yu_wh_router_proc_svar (void * gen_ptr, const char * var_name, void ** var_p
 		*var_p_ptr = (void *) (&prs_ptr->port_number);
 		FOUT
 		}
-	if (strcmp ("node_ID_self" , var_name) == 0)
+	if (strcmp ("This_Node_Number" , var_name) == 0)
 		{
-		*var_p_ptr = (void *) (&prs_ptr->node_ID_self);
+		*var_p_ptr = (void *) (&prs_ptr->This_Node_Number);
+		FOUT
+		}
+	if (strcmp ("In_Node_Number" , var_name) == 0)
+		{
+		*var_p_ptr = (void *) (&prs_ptr->In_Node_Number);
+		FOUT
+		}
+	if (strcmp ("Out_Node_Number" , var_name) == 0)
+		{
+		*var_p_ptr = (void *) (&prs_ptr->Out_Node_Number);
+		FOUT
+		}
+	if (strcmp ("My_Total_Node_Num" , var_name) == 0)
+		{
+		*var_p_ptr = (void *) (&prs_ptr->My_Total_Node_Num);
+		FOUT
+		}
+	if (strcmp ("Total_Node_Num" , var_name) == 0)
+		{
+		*var_p_ptr = (void *) (&prs_ptr->Total_Node_Num);
 		FOUT
 		}
 	*var_p_ptr = (void *)OPC_NIL;
