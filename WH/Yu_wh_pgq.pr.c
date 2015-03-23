@@ -15,7 +15,7 @@
 
 
 /* This variable carries the header into the object file */
-const char Yu_wh_pgq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 550CD02B 550CD02B 1 ECE-PHO305-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
+const char Yu_wh_pgq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 550F5B49 550F5B49 1 ECE-PHO305-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
 #include <string.h>
 
 
@@ -192,7 +192,7 @@ Packet * get_pk_in_queue(void) {
 }
 
 void schedule_tf(void){
-	Packet * pkptr;
+
 	int rmt_tf_intpt_code;
 	double remaining_time;
 
@@ -208,9 +208,6 @@ void schedule_tf(void){
 	} else if(Num_Flits_Left_to_Send > 0 && Dest_Node_Number != rmt_tf_intpt_code) {
 		printf("receive unexpected remote intrpt from node:%d\n", rmt_tf_intpt_code);
 	}
-	
-	pkptr = generate_flit(Flit_Type_Tail, 11);
-	op_subq_pk_insert(0, pkptr, OPC_QPOS_TAIL);
 	
 	FOUT;
 }
@@ -284,6 +281,7 @@ void generate_message(void){
 	only send the head to the router as other ports. If the port is free, 
 	then starting sending whole message
 	*/
+
 	if(Being_Trans_or_Not == Not_Being_Trans) {
 		pkptr = get_pk_in_queue();
 		if(pkptr != NULL) {
@@ -301,20 +299,18 @@ void generate_message(void){
 	Inter_Arrival_Time = op_dist_outcome(Inter_Arrival_Distr);	
 	op_intrpt_schedule_self (op_sim_time () + Inter_Arrival_Time, GEN_MSG_INTRPT_CODE);
 
+	
 	FOUT;
 }
 
 void send_next_flit(){
 	Packet * pkptr;
 	
-	int intrpt_code;
 	int tmp_data;
 	int tmp_type;
 	
 	FIN(send_next_flit());
-	
-	intrpt_code = op_intrpt_code();
-	
+
 	// when the tail flit has been sent, need to start sending a new message if possible
 	if(Sent_TF_or_not == Did_Send_TF){
 		Sent_TF_or_not = Didnt_Send_TF;
@@ -334,6 +330,7 @@ void send_next_flit(){
 			}
 		}
 	} 
+	
 	// if the worm is in processing, then continue
 	else if (Worm_Counter > 0){
 		// if the next flit is source head flit or worm length flit, then extract from the queue
@@ -342,10 +339,12 @@ void send_next_flit(){
 			op_pk_send(pkptr, PGQ_to_Router_Channel);
 			Num_Flits_Left_to_Send--;
 		}
-		/* 
-		when the scheduled interrupt times out, send the tail flit here
-		Once receive remote intrpt of schedul_TF, send TF ASAP
-		*/
+	
+
+		//when the scheduled interrupt times out, send the tail flit here
+		//Once receive remote intrpt of schedul_TF, send TF ASAP
+
+
 		else if(Num_Flits_Left_to_Send == TF_Sch_TimeOut_TRUE){
 			// only left the tail, and only triggered when received the remote interrupt
 			if (TF_Sch_TimeOut == TF_Sch_TimeOut_TRUE) {
@@ -363,12 +362,15 @@ void send_next_flit(){
 				op_pk_send(pkptr, PGQ_to_Router_Channel);
 			}
 		} 
-		/* 
-		generate the data flit here, this is a heuristic way for simulation,
-		actually data flits are supposed to be read from the queue, however,
-		in order to improve the performance of simulator, we generate the data flits
-		here. and that's the same thing for the tail flit.
-		*/
+
+	
+		
+		//generate the data flit here, this is a heuristic way for simulation,
+		//actually data flits are supposed to be read from the queue, however,
+		//in order to improve the performance of simulator, we generate the data flits
+		//here. and that's the same thing for the tail flit.
+	
+
 		else{
 			Num_Flits_Left_to_Send--;
 			pkptr = generate_flit(Flit_Type_Data_Flit, Num_Flits_Left_to_Send);
@@ -376,6 +378,10 @@ void send_next_flit(){
 		}
 	}
 	
+/*
+	pkptr = generate_flit(Flit_Type_Data_Flit, 22);
+	op_pk_send(pkptr, PGQ_to_Router_Channel);
+	*/
 	FOUT;
 }
 
@@ -391,7 +397,7 @@ void initialize_PGQ(void){
 	// int i;
 	double TEST_ave = 0.0;
 	
-	FIN(initialize_gen());
+	FIN(initialize_PGQ());
 	// clean number of messages in the queue
 	Worm_Counter = 0;
 	
@@ -435,9 +441,8 @@ void initialize_PGQ(void){
 		printf("Inter_Arrival_Time: %f\n", Inter_Arrival_Time);
 	}
 	
-	if (This_Node_Number == 0) {
-	// op_intrpt_schedule_self (op_sim_time () +  Inter_Arrival_Time, GEN_MSG_INTRPT_CODE);
-	}
+	//if (This_Node_Number == 0)
+	op_intrpt_schedule_self (op_sim_time () +  Inter_Arrival_Time, GEN_MSG_INTRPT_CODE);
 		
 	FOUT;
 }

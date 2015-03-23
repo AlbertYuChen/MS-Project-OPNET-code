@@ -15,7 +15,7 @@
 
 
 /* This variable carries the header into the object file */
-const char Yu_wh_psq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 5509EF46 5509EF46 1 ECE-PHO305-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
+const char Yu_wh_psq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 550F5B6C 550F5B6C 1 ECE-PHO305-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
 #include <string.h>
 
 
@@ -27,10 +27,15 @@ const char Yu_wh_psq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 5509EF46 550
 
 /* Header Block */
 
+// include files
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <string.h>
+#include <direct.h>
 
 // define arrival signal here
 #define ARRIVAL (op_intrpt_type() == OPC_INTRPT_STRM)
-
 
 // define flit receiving function here
 #define RECEIVE_FLIT receive_flit_in_squeue();
@@ -43,15 +48,6 @@ const char Yu_wh_psq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 5509EF46 550
 #define Flit_Type_Worm_Length 6
 #define Flit_Type_Tail 7
 
-
-/* packet stream definitions */
-#define RCV_IN_STRM 0
-#define SRC_IN_STRM 1
-#define XMT_OUT_STRM 0
-
-/* transition macros */
-#define SRC_ARRVL (ev_type == OPC_INTRPT_STRM && ev_strm == SRC_IN_STRM)
-#define RCV_ARRVL (ev_type == OPC_INTRPT_STRM && ev_strm == RCV_IN_STRM)
 
 // definition of statistics parameters
 #define DIFFERENCE_THRESHOULD 0.1
@@ -77,9 +73,21 @@ typedef struct
 	FSM_SYS_STATE
 	/* State Variables */
 	Stathandle	             		ete_gsh                                         ;
+	int	                    		This_Node_Number                                ;
+	int	                    		Total_Node_Num                                  ;
+	Stathandle	             		flit_stat_handler                               ;
+	double	                 		flit_counter                                    ;
+	Stathandle	             		PGQ_router_handshaking                          ;
+	int	                    		Comming_Node_Number                             ;
 	} Yu_wh_psq_state;
 
 #define ete_gsh                 		op_sv_ptr->ete_gsh
+#define This_Node_Number        		op_sv_ptr->This_Node_Number
+#define Total_Node_Num          		op_sv_ptr->Total_Node_Num
+#define flit_stat_handler       		op_sv_ptr->flit_stat_handler
+#define flit_counter            		op_sv_ptr->flit_counter
+#define PGQ_router_handshaking  		op_sv_ptr->PGQ_router_handshaking
+#define Comming_Node_Number     		op_sv_ptr->Comming_Node_Number
 
 /* These macro definitions will define a local variable called	*/
 /* "op_sv_ptr" in each function containing a FIN statement.	*/
@@ -99,6 +107,44 @@ enum { _op_block_origin = __LINE__ + 2};
 #endif
 
 
+void initialize_PSQ(void) {
+	Objid myObjid, parentObjid;
+	char parentname[64];
+	char RName[128];
+	FILE * Rinfile;
+	char lbuf[128];
+	char * nToken;
+	
+	FIN(initialize_PSQ());
+	//
+	flit_counter = 0;
+	
+	// get the local node number
+	myObjid = op_id_self();
+	parentObjid = op_topo_parent (myObjid);
+	op_ima_obj_attr_get (parentObjid, "name", &parentname);
+	This_Node_Number = atoi(&parentname[5]);
+	
+	// get the routing table file path
+	sprintf(RName, "C:\\Users\\chenyua\\OPNET_Project\\WH\\ARnode_%d.txt", This_Node_Number);
+	if (!(Rinfile = fopen(RName, "r"))) {
+		printf("initialize_gen: could not find file");
+		exit(-2);
+	}
+	
+	fgets(lbuf, 127, Rinfile);
+	nToken = strtok(lbuf, " \t\n");
+	Total_Node_Num = atoi(nToken);
+	fclose(Rinfile);
+	
+	if (op_prg_odb_ltrace_active ("PSQFILE") == OPC_TRUE){
+		printf("PSQ: node %d  total nodes: %d\n", This_Node_Number, Total_Node_Num);
+	}
+	
+	
+	FOUT;
+}
+
 void discard_rcv_queue(void){
 	
 	Packet * pkptr;
@@ -106,7 +152,7 @@ void discard_rcv_queue(void){
 	FIN(discard_rcv_queue());
 	
 	do {
-		if (!op_subq_empty (0)) {
+		if (!op_subq_empty (0)){
 			pkptr = op_subq_pk_remove(0, OPC_QPOS_HEAD);
 			flit_type = op_pk_nfd_get(pkptr, "type", &flit_type);
 			op_pk_destroy(pkptr);
@@ -117,7 +163,6 @@ void discard_rcv_queue(void){
 		
 	FOUT;
 }
-
 
 void deal_with_statistics(Packet * pkptr){
 	double ete_delay;
@@ -133,35 +178,75 @@ void deal_with_statistics(Packet * pkptr){
 
 void receive_flit_in_squeue(void){
 	Packet * pkptr;
-	int flit_type;
+	int type;
+	int data;
+
+//	Objid rem_node_objid;
+//	Objid rem_queue_objid;
+//	char source_node_name[64];
+	
 	FIN(receive_flit_in_squeue());
 	
 	pkptr = op_pk_get(op_intrpt_strm());
 	
 	// insert into the receiving queue
-	op_subq_pk_insert(0, pkptr, OPC_QPOS_TAIL);
+	// op_subq_pk_insert(0, pkptr, OPC_QPOS_TAIL);
+
+	op_pk_nfd_get(pkptr, "type", &type);
+	op_pk_nfd_get(pkptr, "data", &data);
 	
-	// get the receiving flit type
-	op_pk_nfd_get(pkptr, "type", &flit_type);
-	
-	
-	if(flit_type == Flit_Type_Dest_Addr) {
-		// if the flit is destination address flit, then 
-		// trigger a remote intrrupt to the source node, trigger DEST_ARRIVAL
-	
-	
-	} else if (flit_type == Flit_Type_Src_Addr) {
-		// if the flit contains source address, then trigger remote intrrupt to PGQueue
-		// of the source node
-	
-	} else if (flit_type == Flit_Type_Tail) {
-		// if the flit is a tail, then discard the flits in the receiving queue
-		// get teh statistics data
-		deal_with_statistics(pkptr);
-		discard_rcv_queue();
+	if (op_prg_odb_ltrace_active ("PSQ_RCV") == OPC_TRUE){
+		printf("PSQ: node %d type:%d  data:%d\n", This_Node_Number, type, data);
 	}
 	
 	
+	switch(type){
+		// if the flit is destination address flit, then wait for the source head flit to
+		// trigger a remote intrrupt to the source node, trigger DEST_ARRIVAL
+		case Flit_Type_Dest_Addr:
+		//if( data !=  This_Node_Number) {
+		//	printf("ERROR: PSQ receive_flit_in_squeue()\n");
+		//}
+		break;
+		
+		// if the flit contains source address, then trigger remote intrrupt to PGQueue
+		// of the source node
+		case Flit_Type_Src_Addr:
+		/*
+		//Comming_Node_Number = data;
+		Comming_Node_Number = 0;
+		sprintf(source_node_name, "node_%d", Comming_Node_Number);
+		rem_node_objid = op_id_from_name (0, OPC_OBJTYPE_NODE_FIX, source_node_name);
+		rem_queue_objid = op_id_from_name (rem_node_objid, OPC_OBJTYPE_QUEUE, "PGQueue");
+		op_intrpt_schedule_remote(op_sim_time(), This_Node_Number, rem_queue_objid);
+		printf("Worm comes from @%d\n", Comming_Node_Number);
+		*/
+		break;
+		
+		case Flit_Type_Worm_Length:
+		
+		
+		break;
+		
+		// data flit
+		case Flit_Type_Data_Flit:
+		break;
+		
+		// if the flit is a tail, then discard the flits in the receiving queue
+		// get teh statistics data
+		case Flit_Type_Tail:
+		// deal_with_statistics(pkptr);
+		// discard_rcv_queue();
+		break;
+		
+		default:
+		printf("ERROR@node%d: PSQ receive_flit_in_squeue\n", This_Node_Number);
+	}	
+	
+	flit_counter++;
+	op_stat_write (PGQ_router_handshaking, flit_counter);
+	
+	printf("op_stat_write\n");
 	
 	FOUT;
 }
@@ -227,9 +312,6 @@ Yu_wh_psq (OP_SIM_CONTEXT_ARG_OPT)
 	FIN_MT (Yu_wh_psq ());
 
 		{
-		/* Temporary Variables */
-		int   ev_type, ev_strm;
-		/* End of Temporary Variables */
 
 
 		FSM_ENTER ("Yu_wh_psq")
@@ -237,58 +319,50 @@ Yu_wh_psq (OP_SIM_CONTEXT_ARG_OPT)
 		FSM_BLOCK_SWITCH
 			{
 			/*---------------------------------------------------------*/
-			/** state (st_4) enter executives **/
-			FSM_STATE_ENTER_FORCED_NOLABEL (0, "st_4", "Yu_wh_psq [st_4 enter execs]")
-				FSM_PROFILE_SECTION_IN ("Yu_wh_psq [st_4 enter execs]", state0_enter_exec)
+			/** state (init) enter executives **/
+			FSM_STATE_ENTER_FORCED_NOLABEL (0, "init", "Yu_wh_psq [init enter execs]")
+				FSM_PROFILE_SECTION_IN ("Yu_wh_psq [init enter execs]", state0_enter_exec)
 				{
+				initialize_PSQ();
+				
 				ete_gsh = op_stat_reg ("ETE Delay", OPC_STAT_INDEX_NONE, OPC_STAT_GLOBAL);
+				
+				PGQ_router_handshaking = op_stat_reg ("ACK", OPC_STAT_INDEX_NONE, OPC_STAT_LOCAL);
 				}
 				FSM_PROFILE_SECTION_OUT (state0_enter_exec)
 
-			/** state (st_4) exit executives **/
-			FSM_STATE_EXIT_FORCED (0, "st_4", "Yu_wh_psq [st_4 exit execs]")
+			/** state (init) exit executives **/
+			FSM_STATE_EXIT_FORCED (0, "init", "Yu_wh_psq [init exit execs]")
 
 
-			/** state (st_4) transition processing **/
-			FSM_TRANSIT_FORCE (1, state1_enter_exec, ;, "default", "", "st_4", "st_5", "tr_3", "Yu_wh_psq [st_4 -> st_5 : default / ]")
+			/** state (init) transition processing **/
+			FSM_TRANSIT_FORCE (1, state1_enter_exec, ;, "default", "", "init", "idle", "tr_3", "Yu_wh_psq [init -> idle : default / ]")
 				/*---------------------------------------------------------*/
 
 
 
-			/** state (st_5) enter executives **/
-			FSM_STATE_ENTER_UNFORCED (1, "st_5", state1_enter_exec, "Yu_wh_psq [st_5 enter execs]")
+			/** state (idle) enter executives **/
+			FSM_STATE_ENTER_UNFORCED (1, "idle", state1_enter_exec, "Yu_wh_psq [idle enter execs]")
 
 			/** blocking after enter executives of unforced state. **/
 			FSM_EXIT (3,"Yu_wh_psq")
 
 
-			/** state (st_5) exit executives **/
-			FSM_STATE_EXIT_UNFORCED (1, "st_5", "Yu_wh_psq [st_5 exit execs]")
-				FSM_PROFILE_SECTION_IN ("Yu_wh_psq [st_5 exit execs]", state1_exit_exec)
-				{
-				ev_type = op_intrpt_type();
-				if (ev_type == OPC_INTRPT_STRM)
-				   ev_strm = op_intrpt_strm();
-				
-				
-				
-				
-				
-				}
-				FSM_PROFILE_SECTION_OUT (state1_exit_exec)
+			/** state (idle) exit executives **/
+			FSM_STATE_EXIT_UNFORCED (1, "idle", "Yu_wh_psq [idle exit execs]")
 
 
-			/** state (st_5) transition processing **/
-			FSM_PROFILE_SECTION_IN ("Yu_wh_psq [st_5 trans conditions]", state1_trans_conds)
+			/** state (idle) transition processing **/
+			FSM_PROFILE_SECTION_IN ("Yu_wh_psq [idle trans conditions]", state1_trans_conds)
 			FSM_INIT_COND (ARRIVAL)
 			FSM_DFLT_COND
-			FSM_TEST_LOGIC ("st_5")
+			FSM_TEST_LOGIC ("idle")
 			FSM_PROFILE_SECTION_OUT (state1_trans_conds)
 
 			FSM_TRANSIT_SWITCH
 				{
-				FSM_CASE_TRANSIT (0, 1, state1_enter_exec, RECEIVE_FLIT;, "ARRIVAL", "RECEIVE_FLIT", "st_5", "st_5", "tr_5", "Yu_wh_psq [st_5 -> st_5 : ARRIVAL / RECEIVE_FLIT]")
-				FSM_CASE_TRANSIT (1, 1, state1_enter_exec, ;, "default", "", "st_5", "st_5", "tr_4", "Yu_wh_psq [st_5 -> st_5 : default / ]")
+				FSM_CASE_TRANSIT (0, 1, state1_enter_exec, RECEIVE_FLIT;, "ARRIVAL", "RECEIVE_FLIT", "idle", "idle", "tr_5", "Yu_wh_psq [idle -> idle : ARRIVAL / RECEIVE_FLIT]")
+				FSM_CASE_TRANSIT (1, 1, state1_enter_exec, ;, "default", "", "idle", "idle", "tr_4", "Yu_wh_psq [idle -> idle : default / ]")
 				}
 				/*---------------------------------------------------------*/
 
@@ -332,6 +406,12 @@ _op_Yu_wh_psq_terminate (OP_SIM_CONTEXT_ARG_OPT)
 /* syntax error in direct access to fields of */
 /* local variable prs_ptr in _op_Yu_wh_psq_svar function. */
 #undef ete_gsh
+#undef This_Node_Number
+#undef Total_Node_Num
+#undef flit_stat_handler
+#undef flit_counter
+#undef PGQ_router_handshaking
+#undef Comming_Node_Number
 
 #undef FIN_PREAMBLE_DEC
 #undef FIN_PREAMBLE_CODE
@@ -366,7 +446,7 @@ _op_Yu_wh_psq_alloc (VosT_Obtype obtype, int init_block)
 		{
 		ptr->_op_current_block = init_block;
 #if defined (OPD_ALLOW_ODB)
-		ptr->_op_current_state = "Yu_wh_psq [st_4 enter execs]";
+		ptr->_op_current_state = "Yu_wh_psq [init enter execs]";
 #endif
 		}
 	FRET ((VosT_Address)ptr)
@@ -391,6 +471,36 @@ _op_Yu_wh_psq_svar (void * gen_ptr, const char * var_name, void ** var_p_ptr)
 	if (strcmp ("ete_gsh" , var_name) == 0)
 		{
 		*var_p_ptr = (void *) (&prs_ptr->ete_gsh);
+		FOUT
+		}
+	if (strcmp ("This_Node_Number" , var_name) == 0)
+		{
+		*var_p_ptr = (void *) (&prs_ptr->This_Node_Number);
+		FOUT
+		}
+	if (strcmp ("Total_Node_Num" , var_name) == 0)
+		{
+		*var_p_ptr = (void *) (&prs_ptr->Total_Node_Num);
+		FOUT
+		}
+	if (strcmp ("flit_stat_handler" , var_name) == 0)
+		{
+		*var_p_ptr = (void *) (&prs_ptr->flit_stat_handler);
+		FOUT
+		}
+	if (strcmp ("flit_counter" , var_name) == 0)
+		{
+		*var_p_ptr = (void *) (&prs_ptr->flit_counter);
+		FOUT
+		}
+	if (strcmp ("PGQ_router_handshaking" , var_name) == 0)
+		{
+		*var_p_ptr = (void *) (&prs_ptr->PGQ_router_handshaking);
+		FOUT
+		}
+	if (strcmp ("Comming_Node_Number" , var_name) == 0)
+		{
+		*var_p_ptr = (void *) (&prs_ptr->Comming_Node_Number);
 		FOUT
 		}
 	*var_p_ptr = (void *)OPC_NIL;

@@ -15,7 +15,7 @@
 
 
 /* This variable carries the header into the object file */
-const char Yu_wh_router_proc_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 550CD039 550CD039 1 ECE-PHO305-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
+const char Yu_wh_router_proc_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 550ECF79 550ECF79 1 ECE-PHO305-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
 #include <string.h>
 
 
@@ -33,6 +33,12 @@ const char Yu_wh_router_proc_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 550C
 #include <math.h>
 #include <string.h>
 #include <direct.h>
+
+/*
+define the interrupt codes here
+*/
+#define SA_FLIT_INTRPT_CODE 1000
+#define ID_DONE_INTRPT_CODE 1001
 
 // define FLIT_ARRIVAL, stream interrupt within the node
 #define FLIT_ARRIVAL (op_intrpt_type () == OPC_INTRPT_STRM)
@@ -74,11 +80,13 @@ const char Yu_wh_router_proc_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 550C
 // 
 #define HANDLE_TIMER router_handle_time_out();
 
+
 /*
-define the interrupt codes here
+routing table
 */
-#define SA_FLIT_INTRPT_CODE 1000
-#define ID_DONE_INTRPT_CODE 1001
+int ** Routing_Table;
+
+
 
 
 
@@ -112,6 +120,7 @@ typedef struct
 	int	                    		Out_Node_Number                                 ;
 	int	                    		My_Total_Node_Num                               ;
 	int	                    		Total_Node_Num                                  ;
+	int	                    		Max_Deg                                         ;
 	} Yu_wh_router_proc_state;
 
 #define port_number             		op_sv_ptr->port_number
@@ -120,6 +129,7 @@ typedef struct
 #define Out_Node_Number         		op_sv_ptr->Out_Node_Number
 #define My_Total_Node_Num       		op_sv_ptr->My_Total_Node_Num
 #define Total_Node_Num          		op_sv_ptr->Total_Node_Num
+#define Max_Deg                 		op_sv_ptr->Max_Deg
 
 /* These macro definitions will define a local variable called	*/
 /* "op_sv_ptr" in each function containing a FIN statement.	*/
@@ -150,6 +160,55 @@ Packet * r_generate_flit(int type, int data){
 	FRET(pkptr);
 }
 
+void load_ARnode_routing_table(void) {
+	int i;
+	char RName[128];
+	char lbuf[2048];
+	char * nToken;
+	FILE * Rinfile;
+	int row;
+	int col;
+	int dest_port;
+	
+	FIN(load_ARnode_routing_table());
+	
+	sprintf(RName, "C:\\Users\\chenyua\\OPNET_Project\\WH\\ARnode_%d.txt", This_Node_Number);
+	if (!(Rinfile = fopen(RName, "r"))) {
+		printf("load_routing_table: could not find file");
+		exit(-2);
+	}
+	
+	Routing_Table = (int **)malloc(Max_Deg * sizeof(int));
+	// the reason for adding one here is that the port includes the PSQueue port, i.e. port #0
+	for (i = 0; i < Max_Deg + 1; i++) {
+		Routing_Table[i] = (int *)malloc(Total_Node_Num * sizeof(int));
+	}
+	
+	// start from the second line
+	fgets(lbuf, 2048, Rinfile);
+	row = 0;
+	while(fgets(lbuf, 2048, Rinfile)){
+		//printf("%s", lbuf);
+		nToken = strtok(lbuf, " ] [ ");
+		
+		for (col = 0; col < Total_Node_Num; col++) {
+			
+			dest_port = atoi(nToken);
+			Routing_Table[row][col] = dest_port;
+			
+			if (op_prg_odb_ltrace_active ("RT") == OPC_TRUE){
+				printf("%3d", Routing_Table[row][col]);
+				if(col == 63){
+					printf("\nrow:%d  col:%d\n", row, col);
+				}
+			}
+			nToken = strtok(NULL, " ] [ ");	
+		}
+		row++;
+	}
+	FOUT;
+}
+
 void initialize_router(void){
 	
 	Packet * pkptr;
@@ -160,7 +219,7 @@ void initialize_router(void){
 	char lbuf[128];
 	char * nToken;
 	int Max_Pt_Num;
-	int pt;
+	int strm_pt;
 	
 	FIN(initialize_router());
 		
@@ -177,25 +236,29 @@ void initialize_router(void){
 		exit(-2);
 	}
 	
-	fgets(lbuf, 127, Rinfile);
+	fgets(lbuf, 128, Rinfile);
 	nToken = strtok(lbuf, " \t\n");
 	Total_Node_Num = atoi(nToken);
+	nToken = strtok(NULL, " \t\n");
+	Max_Deg = atoi(nToken);
 	fclose(Rinfile);
 	
+	// printf("Total_Node_Num: %d  Max_Deg: %d\n",Total_Node_Num, Max_Deg);
+	
 	// send the source head flit to adjacent nodes, they will get the connection status
-	if (op_prg_odb_ltrace_active ("RFILE") == OPC_TRUE){
-		printf("FILE %d\n", Total_Node_Num);
-		printf("node: %s, %d\n", parentname , This_Node_Number);
+	// the max port number is defined in the attributes
+	op_ima_obj_attr_get (myObjid, "R_Pt_Num", &Max_Pt_Num);
 	
-		op_ima_obj_attr_get (myObjid, "R_Pt_Num", &Max_Pt_Num);
-	
-		//if (This_Node_Number == 0) {
-			for (pt = 1; pt < Max_Pt_Num; pt++) {
-				pkptr = r_generate_flit(Flit_Type_Src_Addr, This_Node_Number);				
-				op_pk_send(pkptr, pt);
-			}
-		//}
+	for (strm_pt = 2; strm_pt <= Max_Deg + 1; strm_pt++) {
+	//for (strm_pt = 2; strm_pt <= 2; strm_pt++) {
+		pkptr = r_generate_flit(Flit_Type_Src_Addr, This_Node_Number);				
+		op_pk_send(pkptr, strm_pt);
 	}
+	
+	// call the routing table initializer here
+	// if(This_Node_Number == 0)
+	load_ARnode_routing_table();
+	
 	FOUT;
 }
 
@@ -205,16 +268,17 @@ void get_id_stream(void) {
 	Packet * pkptr;
 	int type;
 	int data;
+	int strm_port_number;
 
 	FIN(get_id_stream());
-	pkptr = op_pk_get (op_intrpt_strm ());
+	
+	strm_port_number = op_intrpt_strm ();
+	pkptr = op_pk_get (strm_port_number);
 	op_pk_nfd_get(pkptr, "type", &type);
 	op_pk_nfd_get(pkptr, "data", &data);
-	printf("RRR%d\n", This_Node_Number);
 	
 	if (op_prg_odb_ltrace_active ("SA") == OPC_TRUE){
-		printf("R_Node%d receive: type:%d data:%d\n", This_Node_Number, type, data);
-			
+		printf("R_Node%d strm@%d: type:%d data:%d\n", This_Node_Number, strm_port_number, type, data);
 	}
 
 	// get the neighbors ID
@@ -226,7 +290,6 @@ void get_id_stream(void) {
 	
 	// schedule a self interrupt to move to Listening status
 	op_intrpt_schedule_self (op_sim_time (), 0);
-
 
 	FOUT;
 }
@@ -267,7 +330,7 @@ void flit_handler(void){
 	op_pk_nfd_get(pkptr, "data", &tmp_data);
 	
 	if (op_prg_odb_ltrace_active ("LS") == OPC_TRUE){
-		printf("node: %d got flit type:%d data:%d\n\n", This_Node_Number, tmp_type, tmp_data);
+		printf("Listern: node: %d got flit type:%d data:%d\n\n", This_Node_Number, tmp_type, tmp_data);
 	}
 	
 	// call other procedures that handle individual flit types
@@ -538,6 +601,7 @@ _op_Yu_wh_router_proc_terminate (OP_SIM_CONTEXT_ARG_OPT)
 #undef Out_Node_Number
 #undef My_Total_Node_Num
 #undef Total_Node_Num
+#undef Max_Deg
 
 #undef FIN_PREAMBLE_DEC
 #undef FIN_PREAMBLE_CODE
@@ -622,6 +686,11 @@ _op_Yu_wh_router_proc_svar (void * gen_ptr, const char * var_name, void ** var_p
 	if (strcmp ("Total_Node_Num" , var_name) == 0)
 		{
 		*var_p_ptr = (void *) (&prs_ptr->Total_Node_Num);
+		FOUT
+		}
+	if (strcmp ("Max_Deg" , var_name) == 0)
+		{
+		*var_p_ptr = (void *) (&prs_ptr->Max_Deg);
 		FOUT
 		}
 	*var_p_ptr = (void *)OPC_NIL;
