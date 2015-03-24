@@ -15,7 +15,7 @@
 
 
 /* This variable carries the header into the object file */
-const char Yu_wh_psq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 550F5B6C 550F5B6C 1 ECE-PHO305-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
+const char Yu_wh_psq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 5510B8C8 5510B8C8 1 ECE-PHO309-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
 #include <string.h>
 
 
@@ -79,6 +79,7 @@ typedef struct
 	double	                 		flit_counter                                    ;
 	Stathandle	             		PGQ_router_handshaking                          ;
 	int	                    		Comming_Node_Number                             ;
+	double	                 		Worm_Create_Time                                ;
 	} Yu_wh_psq_state;
 
 #define ete_gsh                 		op_sv_ptr->ete_gsh
@@ -88,6 +89,7 @@ typedef struct
 #define flit_counter            		op_sv_ptr->flit_counter
 #define PGQ_router_handshaking  		op_sv_ptr->PGQ_router_handshaking
 #define Comming_Node_Number     		op_sv_ptr->Comming_Node_Number
+#define Worm_Create_Time        		op_sv_ptr->Worm_Create_Time
 
 /* These macro definitions will define a local variable called	*/
 /* "op_sv_ptr" in each function containing a FIN statement.	*/
@@ -181,16 +183,13 @@ void receive_flit_in_squeue(void){
 	int type;
 	int data;
 
-//	Objid rem_node_objid;
-//	Objid rem_queue_objid;
-//	char source_node_name[64];
+	Objid rem_node_objid;
+	Objid rem_queue_objid;
+	char source_node_name[64];
 	
 	FIN(receive_flit_in_squeue());
 	
 	pkptr = op_pk_get(op_intrpt_strm());
-	
-	// insert into the receiving queue
-	// op_subq_pk_insert(0, pkptr, OPC_QPOS_TAIL);
 
 	op_pk_nfd_get(pkptr, "type", &type);
 	op_pk_nfd_get(pkptr, "data", &data);
@@ -199,37 +198,41 @@ void receive_flit_in_squeue(void){
 		printf("PSQ: node %d type:%d  data:%d\n", This_Node_Number, type, data);
 	}
 	
-	
 	switch(type){
 		// if the flit is destination address flit, then wait for the source head flit to
 		// trigger a remote intrrupt to the source node, trigger DEST_ARRIVAL
 		case Flit_Type_Dest_Addr:
-		//if( data !=  This_Node_Number) {
-		//	printf("ERROR: PSQ receive_flit_in_squeue()\n");
-		//}
+		if( data !=  This_Node_Number) {
+			printf("ERROR: PSQ receive_flit_in_squeue()\n");
+		}
+		
+		printf("Worm slot: %f\n",  op_pk_creation_time_get (pkptr) - Worm_Create_Time);
+		
+		Worm_Create_Time = op_pk_creation_time_get (pkptr);
+		op_pk_destroy(pkptr);
 		break;
 		
 		// if the flit contains source address, then trigger remote intrrupt to PGQueue
 		// of the source node
 		case Flit_Type_Src_Addr:
-		/*
-		//Comming_Node_Number = data;
-		Comming_Node_Number = 0;
+	
+		Comming_Node_Number = data;
 		sprintf(source_node_name, "node_%d", Comming_Node_Number);
-		rem_node_objid = op_id_from_name (0, OPC_OBJTYPE_NODE_FIX, source_node_name);
+		rem_node_objid = op_id_from_name (1, OPC_OBJTYPE_NODE_FIXED, source_node_name);
+		printf("comming node:%s  rem_node_objid:%d\n", source_node_name, rem_node_objid);
+		
 		rem_queue_objid = op_id_from_name (rem_node_objid, OPC_OBJTYPE_QUEUE, "PGQueue");
 		op_intrpt_schedule_remote(op_sim_time(), This_Node_Number, rem_queue_objid);
-		printf("Worm comes from @%d\n", Comming_Node_Number);
-		*/
+		op_pk_destroy(pkptr);
 		break;
 		
 		case Flit_Type_Worm_Length:
-		
-		
+		op_pk_destroy(pkptr);
 		break;
 		
 		// data flit
 		case Flit_Type_Data_Flit:
+		op_pk_destroy(pkptr);
 		break;
 		
 		// if the flit is a tail, then discard the flits in the receiving queue
@@ -237,10 +240,15 @@ void receive_flit_in_squeue(void){
 		case Flit_Type_Tail:
 		// deal_with_statistics(pkptr);
 		// discard_rcv_queue();
+		
+		printf("Worm delay @node:%f\n", op_sim_time() - Worm_Create_Time);
+		op_stat_write (ete_gsh,	op_sim_time() - Worm_Create_Time);
+		op_pk_destroy(pkptr);
 		break;
 		
 		default:
 		printf("ERROR@node%d: PSQ receive_flit_in_squeue\n", This_Node_Number);
+		op_pk_destroy(pkptr);
 	}	
 	
 	flit_counter++;
@@ -412,6 +420,7 @@ _op_Yu_wh_psq_terminate (OP_SIM_CONTEXT_ARG_OPT)
 #undef flit_counter
 #undef PGQ_router_handshaking
 #undef Comming_Node_Number
+#undef Worm_Create_Time
 
 #undef FIN_PREAMBLE_DEC
 #undef FIN_PREAMBLE_CODE
@@ -501,6 +510,11 @@ _op_Yu_wh_psq_svar (void * gen_ptr, const char * var_name, void ** var_p_ptr)
 	if (strcmp ("Comming_Node_Number" , var_name) == 0)
 		{
 		*var_p_ptr = (void *) (&prs_ptr->Comming_Node_Number);
+		FOUT
+		}
+	if (strcmp ("Worm_Create_Time" , var_name) == 0)
+		{
+		*var_p_ptr = (void *) (&prs_ptr->Worm_Create_Time);
 		FOUT
 		}
 	*var_p_ptr = (void *)OPC_NIL;

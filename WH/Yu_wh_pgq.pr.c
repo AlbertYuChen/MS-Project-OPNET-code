@@ -15,7 +15,7 @@
 
 
 /* This variable carries the header into the object file */
-const char Yu_wh_pgq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 550F5B49 550F5B49 1 ECE-PHO305-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
+const char Yu_wh_pgq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 5510C218 5510C218 1 ECE-PHO309-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
 #include <string.h>
 
 
@@ -79,7 +79,7 @@ const char Yu_wh_pgq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 550F5B49 550
 #define Not_Being_Trans 0
 
 // define FLIT_TRANSTER_TIME
-#define FLIT_TRANSTER_TIME 0.00083333333
+#define FLIT_TRANSTER_TIME 0.00083333333333333
 
 // define status of TF_Sch_TimeOut
 #define TF_Sch_TimeOut_TRUE 1
@@ -202,6 +202,7 @@ void schedule_tf(void){
 	
 	// when the head arrives the destination
 	if (Num_Flits_Left_to_Send > 0 && Dest_Node_Number == rmt_tf_intpt_code) {
+		printf("Num_Flits_Left_to_Send:%d\n", Num_Flits_Left_to_Send);
 		remaining_time = Num_Flits_Left_to_Send * FLIT_TRANSTER_TIME;
 		TF_Sch_TimeOut = TF_Sch_TimeOut_FALSE;
 		op_intrpt_schedule_self(op_sim_time() + remaining_time, TAIL_FLIT_INTRPT_CODE);
@@ -215,7 +216,7 @@ void schedule_tf(void){
 // generate and enqueue message
 void generate_message(void){
 	Packet * pkptr;
-	int data_flits_length;
+	// int data_flits_length;
 	int gen_Dest_Node_Number;
 	int tmp_type;
 	int tmp_data;
@@ -225,6 +226,9 @@ void generate_message(void){
 	do {
 		gen_Dest_Node_Number = (int)op_dist_outcome(Dest_Node_Number_Distr);
 	}while(gen_Dest_Node_Number == This_Node_Number);
+	
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// gen_Dest_Node_Number = 0;
 	
 	if (op_prg_odb_ltrace_active ("DN") == OPC_TRUE){
 		printf("node%d: dest node: %d\n", This_Node_Number, gen_Dest_Node_Number);
@@ -240,7 +244,7 @@ void generate_message(void){
 	
 	// worm length flit
 	Worm_Gen_Len = (int)op_dist_outcome(Worm_Len_Distr);
-	data_flits_length = Worm_Gen_Len - 4; // length including 3 heads and 1 tail
+	// data_flits_length = Worm_Gen_Len - 4; // length including 3 heads and 1 tail
 	pkptr = generate_flit(Flit_Type_Worm_Length, Worm_Gen_Len);
 	op_subq_pk_insert(0, pkptr, OPC_QPOS_TAIL);
 	
@@ -340,11 +344,8 @@ void send_next_flit(){
 			Num_Flits_Left_to_Send--;
 		}
 	
-
 		//when the scheduled interrupt times out, send the tail flit here
 		//Once receive remote intrpt of schedul_TF, send TF ASAP
-
-
 		else if(Num_Flits_Left_to_Send == TF_Sch_TimeOut_TRUE){
 			// only left the tail, and only triggered when received the remote interrupt
 			if (TF_Sch_TimeOut == TF_Sch_TimeOut_TRUE) {
@@ -362,15 +363,11 @@ void send_next_flit(){
 				op_pk_send(pkptr, PGQ_to_Router_Channel);
 			}
 		} 
-
-	
 		
 		//generate the data flit here, this is a heuristic way for simulation,
 		//actually data flits are supposed to be read from the queue, however,
 		//in order to improve the performance of simulator, we generate the data flits
 		//here. and that's the same thing for the tail flit.
-	
-
 		else{
 			Num_Flits_Left_to_Send--;
 			pkptr = generate_flit(Flit_Type_Data_Flit, Num_Flits_Left_to_Send);

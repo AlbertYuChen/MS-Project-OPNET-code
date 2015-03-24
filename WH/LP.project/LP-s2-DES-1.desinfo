@@ -12,9 +12,8 @@ mem_opt.pool_small_blocks                    default     TRUE
 mem_opt.grow_pool_planks                     default     TRUE
 mem_optimize                                 default     TRUE
 mem_shred                                    default     FALSE
-mod_dirs                                     env. file   C:\Users\chenyua\OPNET_Project\WH,
-                                                         C:\OPNET\17.1.A\models\tutorial_ref\basic\,
-                                                         X:\op_models,
+mod_dirs                                     env. file   C:\Users\chenyua\MYOPNET\WH,
+                                                         C:\Users\Administrator\AppData\Roaming\SPB_Data\op_models,
                                                          C:\OPNET\17.1.A\sys\lib,
                                                          C:\OPNET\17.1.A\sys\icons,
                                                          C:\OPNET\17.1.A\sys\images,
@@ -28,7 +27,7 @@ mod_dirs                                     env. file   C:\Users\chenyua\OPNET_
                                                          C:\OPNET\17.1.A\sys\utilities\hla,
                                                          C:\OPNET\17.1.A\sys\utilities\sitl,
                                                          C:\OPNET\17.1.A\sys\reports\stylesheets,
-                                                         X:\op_admin\ace_logs,
+                                                         C:\Users\Administrator\AppData\Roaming\SPB_Data\op_admin\ace_logs,
                                                          C:\OPNET\17.1.A\models\std\3dnv_examples,
                                                          C:\OPNET\17.1.A\models\std\advisories,
                                                          C:\OPNET\17.1.A\models\std\advisories\Advisory_Logs,
@@ -233,7 +232,7 @@ mod_dirs                                     env. file   C:\Users\chenyua\OPNET_
                                                          C:\OPNET\17.1.A\models\vendor_models\Xylan
 noprompt                                     cmd line    TRUE
 opnet_dir                                    env. file   C:\OPNET
-opnet_user_home                              shell var   X:\
+opnet_user_home                              shell var   C:\Users\Administrator\AppData\Roaming\SPB_Data
 preferences_default_save_location            env. file   Local
 verbose_session_log                          default     FALSE
 java_prog                                    config file C:\OPNET\17.1.A\jre_modeler\bin\java.exe
@@ -329,7 +328,7 @@ license_https_enable                         default     TRUE
 license_password                             default     <not set>
 license_ping_old_servers                     default     FALSE
 license_port                                 config file port_a
-license_server                               config file opnetlm.bu.edu
+license_server                               config file eng-license3.bu.edu
 license_server_standalone                    config file FALSE
 license_server_standalone_diagnose           default     FALSE
 license_simple_loanable_enable               default     TRUE
