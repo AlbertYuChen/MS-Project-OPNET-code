@@ -15,7 +15,7 @@
 
 
 /* This variable carries the header into the object file */
-const char Yu_wh_pgq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 5510C218 5510C218 1 ECE-PHO309-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
+const char Yu_wh_pgq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 55203434 55203434 1 ECE-PHO309-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
 #include <string.h>
 
 
@@ -199,14 +199,24 @@ void schedule_tf(void){
 	FIN(schedule_tf());
 	
 	rmt_tf_intpt_code = op_intrpt_code();
+	printf("schedule_tf: @Node:%d  from:%d\n", This_Node_Number, rmt_tf_intpt_code);
+	printf("Num_Flits_Left_to_Send:%d  Dest_Node_Number:%d\n", Num_Flits_Left_to_Send, Dest_Node_Number);
 	
 	// when the head arrives the destination
 	if (Num_Flits_Left_to_Send > 0 && Dest_Node_Number == rmt_tf_intpt_code) {
-		printf("Num_Flits_Left_to_Send:%d\n", Num_Flits_Left_to_Send);
+		printf("schedule_tf: @Node:%d\n", This_Node_Number);
+		
+		/*
+		In PSQ-PGQ handshaking test, when PSQ receives the SHF, the remaining flits
+		are 7, not 8. Since the stat wire goes faster than remote intrpt, the Num_Flits_Left_to_Send
+		will decrese first. But in nodes network it may not happen.
+		*/
 		remaining_time = Num_Flits_Left_to_Send * FLIT_TRANSTER_TIME;
 		TF_Sch_TimeOut = TF_Sch_TimeOut_FALSE;
 		op_intrpt_schedule_self(op_sim_time() + remaining_time, TAIL_FLIT_INTRPT_CODE);
 	} else if(Num_Flits_Left_to_Send > 0 && Dest_Node_Number != rmt_tf_intpt_code) {
+		printf("receive unexpected remote intrpt from node:%d\n", rmt_tf_intpt_code);
+	} else{
 		printf("receive unexpected remote intrpt from node:%d\n", rmt_tf_intpt_code);
 	}
 	
@@ -227,8 +237,40 @@ void generate_message(void){
 		gen_Dest_Node_Number = (int)op_dist_outcome(Dest_Node_Number_Distr);
 	}while(gen_Dest_Node_Number == This_Node_Number);
 	
+	
+	
 	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	// gen_Dest_Node_Number = 0;
+	
+	if(This_Node_Number == 0 ){
+		gen_Dest_Node_Number = 12;
+	}
+	else if(This_Node_Number == 4){
+	 	gen_Dest_Node_Number = 12;
+	}
+	else if(This_Node_Number == 8){
+	 	gen_Dest_Node_Number = 12;
+	}
+	else if(This_Node_Number == 15){
+	 	gen_Dest_Node_Number = 12;
+	}
+	else if(This_Node_Number == 10){
+	 	gen_Dest_Node_Number = 12;
+	}
+	else if(This_Node_Number == 3){
+	 	gen_Dest_Node_Number = 12;
+	}
+	/*
+	
+	if(This_Node_Number == 0 ){
+		gen_Dest_Node_Number = 8;
+	}
+	else if(This_Node_Number == 4){
+	 	gen_Dest_Node_Number = 12;
+	}
+
+	*/
+	
+
 	
 	if (op_prg_odb_ltrace_active ("DN") == OPC_TRUE){
 		printf("node%d: dest node: %d\n", This_Node_Number, gen_Dest_Node_Number);
@@ -300,7 +342,13 @@ void generate_message(void){
 	}
 	
 	// schedule the next message
-	Inter_Arrival_Time = op_dist_outcome(Inter_Arrival_Distr);	
+	Inter_Arrival_Time = op_dist_outcome(Inter_Arrival_Distr);
+	
+	
+	
+	Inter_Arrival_Time = 0.1;
+
+	
 	op_intrpt_schedule_self (op_sim_time () + Inter_Arrival_Time, GEN_MSG_INTRPT_CODE);
 
 	
@@ -315,6 +363,8 @@ void send_next_flit(){
 	
 	FIN(send_next_flit());
 
+	// printf("send_next_flit: Num_Flits_Left_to_Send:%d\n", Num_Flits_Left_to_Send);
+	
 	// when the tail flit has been sent, need to start sending a new message if possible
 	if(Sent_TF_or_not == Did_Send_TF){
 		Sent_TF_or_not = Didnt_Send_TF;
@@ -346,15 +396,24 @@ void send_next_flit(){
 	
 		//when the scheduled interrupt times out, send the tail flit here
 		//Once receive remote intrpt of schedul_TF, send TF ASAP
-		else if(Num_Flits_Left_to_Send == TF_Sch_TimeOut_TRUE){
+		else if(Num_Flits_Left_to_Send == 1){
+			Worm_Counter--;
+			Dest_Node_Number = -1;
+			Num_Flits_Left_to_Send = 0;
+			Being_Trans_or_Not = Not_Being_Trans;
+			pkptr = generate_flit(Flit_Type_Tail, This_Node_Number);
+			op_pk_send(pkptr, PGQ_to_Router_Channel);
+		
+			/*
 			// only left the tail, and only triggered when received the remote interrupt
 			if (TF_Sch_TimeOut == TF_Sch_TimeOut_TRUE) {
+				
 				Worm_Counter--;
 				// after sending the tail flit, the transmission shall be hang up
 				Being_Trans_or_Not = Not_Being_Trans;
 				Num_Flits_Left_to_Send = 0;
 				Sent_TF_or_not = Did_Send_TF;
-			
+				
 				// currently, there's no node to send worm to
 				Dest_Node_Number = -1;
 
@@ -362,6 +421,7 @@ void send_next_flit(){
 				pkptr = generate_flit(Flit_Type_Tail, This_Node_Number);
 				op_pk_send(pkptr, PGQ_to_Router_Channel);
 			}
+			*/
 		} 
 		
 		//generate the data flit here, this is a heuristic way for simulation,
@@ -369,20 +429,20 @@ void send_next_flit(){
 		//in order to improve the performance of simulator, we generate the data flits
 		//here. and that's the same thing for the tail flit.
 		else{
-			Num_Flits_Left_to_Send--;
 			pkptr = generate_flit(Flit_Type_Data_Flit, Num_Flits_Left_to_Send);
 			op_pk_send(pkptr, PGQ_to_Router_Channel);
+			Num_Flits_Left_to_Send--;
 		}
 	}
 	
-/*
-	pkptr = generate_flit(Flit_Type_Data_Flit, 22);
-	op_pk_send(pkptr, PGQ_to_Router_Channel);
-	*/
+	
+	// pkptr = generate_flit(Flit_Type_Data_Flit, 22);
+	// op_pk_send(pkptr, PGQ_to_Router_Channel);
+	
 	FOUT;
 }
 
-void initialize_PGQ(void){
+void load_ARnode_PGQ(void){
 
 	Objid myObjid, parentObjid;
 	char parentname[64];
@@ -390,13 +450,8 @@ void initialize_PGQ(void){
 	FILE * Rinfile;
 	char lbuf[128];
 	char * nToken;
-
-	// int i;
-	double TEST_ave = 0.0;
-	
-	FIN(initialize_PGQ());
-	// clean number of messages in the queue
-	Worm_Counter = 0;
+		
+	FIN(load_ARnode_PSQ());
 	
 	// get the local node number
 	myObjid = op_id_self();
@@ -407,7 +462,7 @@ void initialize_PGQ(void){
 	// get the routing table file path
 	sprintf(RName, "C:\\Users\\chenyua\\OPNET_Project\\WH\\ARnode_%d.txt", This_Node_Number);
 	if (!(Rinfile = fopen(RName, "r"))) {
-		printf("initialize_gen: could not find file");
+		printf("load_ARnode_PGQ: could not find file");
 		exit(-2);
 	}
 	
@@ -416,10 +471,63 @@ void initialize_PGQ(void){
 	Total_Node_Num = atoi(nToken);
 	fclose(Rinfile);
 	
-	if (op_prg_odb_ltrace_active ("PGQFILE") == OPC_TRUE){
-		printf("FILE %d\n", Total_Node_Num);
-		printf("node: %s, %d\n", parentname , This_Node_Number);
+	if (op_prg_odb_ltrace_active ("PGQAR") == OPC_TRUE){
+		printf("load_ARnode_PGQ: node %d  total nodes: %d\n", This_Node_Number, Total_Node_Num);
 	}
+	
+	FOUT;
+}
+
+void load_Rnode_PGQ(void){
+
+	Objid myObjid, parentObjid;
+	char parentname[64];
+	char RName[128];
+	FILE * Rinfile;
+	char lbuf[128];
+	char * nToken;
+		
+	FIN(load_ARnode_PSQ());
+	
+	// get the local node number
+	myObjid = op_id_self();
+	parentObjid = op_topo_parent (myObjid);
+	op_ima_obj_attr_get (parentObjid, "name", &parentname);
+	This_Node_Number = atoi(&parentname[5]);
+	
+	// get the routing table file path
+	sprintf(RName, "C:\\Users\\chenyua\\OPNET_Project\\WH_G4x4\\Rnode_%d.txt", This_Node_Number);
+	if (!(Rinfile = fopen(RName, "r"))) {
+		printf("load_Rnode_PGQ: could not find file");
+		exit(-2);
+	}
+	
+	fgets(lbuf, 127, Rinfile);
+	nToken = strtok(lbuf, " \t\n");
+	Total_Node_Num = atoi(nToken);
+	fclose(Rinfile);
+	
+	if (op_prg_odb_ltrace_active ("PGQR") == OPC_TRUE){
+		printf("load_Rnode_PGQ: node %d  total nodes: %d\n", This_Node_Number, Total_Node_Num);
+	}
+	
+	FOUT;
+}
+
+void initialize_PGQ(void){
+
+	Objid myObjid;
+	
+	FIN(initialize_PGQ());
+	
+	// load_ARnode_PGQ();
+	load_Rnode_PGQ();
+	
+	// clean number of messages in the queue
+	Worm_Counter = 0;
+	
+	// get the local node number
+	myObjid = op_id_self();
 	
 	// generate the destination node number distribution
 	Dest_Node_Number_Distr = op_dist_load("uniform_int", 0, Total_Node_Num - 1);
@@ -438,8 +546,13 @@ void initialize_PGQ(void){
 		printf("Inter_Arrival_Time: %f\n", Inter_Arrival_Time);
 	}
 	
-	//if (This_Node_Number == 0)
-	op_intrpt_schedule_self (op_sim_time () +  Inter_Arrival_Time, GEN_MSG_INTRPT_CODE);
+	// if (This_Node_Number == 0 || This_Node_Number == 1 || This_Node_Number == 4 || This_Node_Number == 5)
+	// if (This_Node_Number == 0 || This_Node_Number == 4 || This_Node_Number == 8 )
+	// if (This_Node_Number == 0 || This_Node_Number == 4 || This_Node_Number == 8)
+		// || This_Node_Number == 1 || This_Node_Number == 2 || This_Node_Number == 3)
+	if (This_Node_Number == 0 || This_Node_Number == 15)
+	op_intrpt_schedule_self (op_sim_time () +  0.1, GEN_MSG_INTRPT_CODE);
+	// op_intrpt_schedule_self (op_sim_time () +  Inter_Arrival_Time, GEN_MSG_INTRPT_CODE);
 		
 	FOUT;
 }

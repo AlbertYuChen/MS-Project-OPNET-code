@@ -1,8 +1,8 @@
-4x5	1	0
+scenario1	1	0
 ----------------- Static Environment Attribute Confirmations -----------------
 
 --------------------Name-------------------- --Source--- ------Value------
-ef                                           cmd line    project-4x5-DES-1
+ef                                           cmd line    project1-scenario1-DES-1
 force_posix_locale                           default     TRUE
 handle_exception                             default     TRUE
 handle_exception_extended                    default     TRUE
@@ -12,8 +12,8 @@ mem_opt.pool_small_blocks                    default     TRUE
 mem_opt.grow_pool_planks                     default     TRUE
 mem_optimize                                 default     TRUE
 mem_shred                                    default     FALSE
-mod_dirs                                     env. file   C:\Users\chenyua\OPNET_Project\WH_G4x4\,
-                                                         C:\Users\chenyua\OPNET_Project\WH,
+mod_dirs                                     env. file   C:\Users\chenyua\OPNET_Project\WH\,
+                                                         C:\Users\chenyua\OPNET_Project\WH_G4x4\,
                                                          C:\OPNET\17.1.A\sys\lib,
                                                          C:\OPNET\17.1.A\sys\icons,
                                                          C:\OPNET\17.1.A\sys\images,
@@ -298,7 +298,7 @@ default_site_position_cache_time_granularity env. file   0
 des.log_severity_filter                      env. file   -1
 diag_enable                                  default     FALSE
 display_timezone_string                      default     FALSE
-duration                                     env. file   1000
+duration                                     env. file   10000
 edit_lock_mode                               default     FALSE
 endsim_memstats                              default     FALSE
 etrace_diff                                  default     <null>
@@ -334,7 +334,7 @@ license_simple_loanable_enable               default     TRUE
 license_username                             default     <null>
 livelock_thresh                              default     8192
 log_endsim_perf                              env. file   TRUE
-log_file                                     env. file   project-4x5-DES-1
+log_file                                     env. file   project1-scenario1-DES-1
 log_time_precision                           default     12
 manage_loanable_licenses                     default     FALSE
 max_idle_time_microseconds                   default     1
@@ -345,15 +345,15 @@ memstat_autogen                              default     <null>
 memtag_all                                   default     FALSE
 mtn_warn_int                                 default     3
 named_locks                                  default     FALSE
-net_name                                     cmd line    project-4x5
+net_name                                     cmd line    project1-scenario1
 num_collect_values                           env. file   100
 num_err                                      default     10
-ot_file                                      env. file   project-4x5-DES-1
+ot_file                                      env. file   project1-scenario1-DES-1
 ot_file.default_format                       default     write_many
 ot_mem_size                                  default     4
 ov_autogen                                   default     <null>
 ov_diff_tolerance                            default     5
-ov_file                                      env. file   project-4x5-DES-1
+ov_file                                      env. file   project1-scenario1-DES-1
 ov_mem_size                                  default     16
 parallel_sim.event_execution_time_window     env. file   0
 parallel_sim.mutex_rank_ignore               default     FALSE

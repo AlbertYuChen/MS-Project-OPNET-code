@@ -15,7 +15,7 @@
 
 
 /* This variable carries the header into the object file */
-const char Yu_wh_psq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 5510B8C8 5510B8C8 1 ECE-PHO309-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
+const char Yu_wh_psq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 551D7619 551D7619 1 ECE-PHO309-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
 #include <string.h>
 
 
@@ -77,7 +77,7 @@ typedef struct
 	int	                    		Total_Node_Num                                  ;
 	Stathandle	             		flit_stat_handler                               ;
 	double	                 		flit_counter                                    ;
-	Stathandle	             		PGQ_router_handshaking                          ;
+	Stathandle	             		PSQ_router_handshaking                          ;
 	int	                    		Comming_Node_Number                             ;
 	double	                 		Worm_Create_Time                                ;
 	} Yu_wh_psq_state;
@@ -87,7 +87,7 @@ typedef struct
 #define Total_Node_Num          		op_sv_ptr->Total_Node_Num
 #define flit_stat_handler       		op_sv_ptr->flit_stat_handler
 #define flit_counter            		op_sv_ptr->flit_counter
-#define PGQ_router_handshaking  		op_sv_ptr->PGQ_router_handshaking
+#define PSQ_router_handshaking  		op_sv_ptr->PSQ_router_handshaking
 #define Comming_Node_Number     		op_sv_ptr->Comming_Node_Number
 #define Worm_Create_Time        		op_sv_ptr->Worm_Create_Time
 
@@ -109,17 +109,16 @@ enum { _op_block_origin = __LINE__ + 2};
 #endif
 
 
-void initialize_PSQ(void) {
+void load_ARnode_PSQ(void){
+
 	Objid myObjid, parentObjid;
 	char parentname[64];
 	char RName[128];
 	FILE * Rinfile;
 	char lbuf[128];
 	char * nToken;
-	
-	FIN(initialize_PSQ());
-	//
-	flit_counter = 0;
+		
+	FIN(load_ARnode_PSQ());
 	
 	// get the local node number
 	myObjid = op_id_self();
@@ -130,6 +129,42 @@ void initialize_PSQ(void) {
 	// get the routing table file path
 	sprintf(RName, "C:\\Users\\chenyua\\OPNET_Project\\WH\\ARnode_%d.txt", This_Node_Number);
 	if (!(Rinfile = fopen(RName, "r"))) {
+		printf("load_ARnode_PSQ: could not find file");
+		exit(-2);
+	}
+	
+	fgets(lbuf, 127, Rinfile);
+	nToken = strtok(lbuf, " \t\n");
+	Total_Node_Num = atoi(nToken);
+	fclose(Rinfile);
+	
+	if (op_prg_odb_ltrace_active ("PSQAR") == OPC_TRUE){
+		printf("PSQ AR: node %d  total nodes: %d\n", This_Node_Number, Total_Node_Num);
+	}
+	
+	FOUT;
+}
+
+void load_Rnode_PSQ(void){
+
+	Objid myObjid, parentObjid;
+	char parentname[64];
+	char RName[128];
+	FILE * Rinfile;
+	char lbuf[128];
+	char * nToken;
+		
+	FIN(load_ARnode_PSQ());
+	
+	// get the local node number
+	myObjid = op_id_self();
+	parentObjid = op_topo_parent (myObjid);
+	op_ima_obj_attr_get (parentObjid, "name", &parentname);
+	This_Node_Number = atoi(&parentname[5]);
+	
+	// get the routing table file path
+	sprintf(RName, "C:\\Users\\chenyua\\OPNET_Project\\WH_G4x4\\Rnode_%d.txt", This_Node_Number);
+	if (!(Rinfile = fopen(RName, "r"))) {
 		printf("initialize_gen: could not find file");
 		exit(-2);
 	}
@@ -139,10 +174,20 @@ void initialize_PSQ(void) {
 	Total_Node_Num = atoi(nToken);
 	fclose(Rinfile);
 	
-	if (op_prg_odb_ltrace_active ("PSQFILE") == OPC_TRUE){
-		printf("PSQ: node %d  total nodes: %d\n", This_Node_Number, Total_Node_Num);
+	if (op_prg_odb_ltrace_active ("PSQR") == OPC_TRUE){
+		printf("PSQ R: node %d  total nodes: %d\n", This_Node_Number, Total_Node_Num);
 	}
 	
+	FOUT;
+}
+
+void initialize_PSQ(void) {
+	
+	FIN(initialize_PSQ());
+	//
+	flit_counter = 0;
+	
+	load_Rnode_PSQ();
 	
 	FOUT;
 }
@@ -183,9 +228,9 @@ void receive_flit_in_squeue(void){
 	int type;
 	int data;
 
-	Objid rem_node_objid;
-	Objid rem_queue_objid;
-	char source_node_name[64];
+//	Objid rem_node_objid;
+//	Objid rem_queue_objid;
+//	char source_node_name[64];
 	
 	FIN(receive_flit_in_squeue());
 	
@@ -215,14 +260,15 @@ void receive_flit_in_squeue(void){
 		// if the flit contains source address, then trigger remote intrrupt to PGQueue
 		// of the source node
 		case Flit_Type_Src_Addr:
-	
+		/*
 		Comming_Node_Number = data;
 		sprintf(source_node_name, "node_%d", Comming_Node_Number);
 		rem_node_objid = op_id_from_name (1, OPC_OBJTYPE_NODE_FIXED, source_node_name);
-		printf("comming node:%s  rem_node_objid:%d\n", source_node_name, rem_node_objid);
-		
+		// printf("comming node:%s  rem_node_objid:%d\n", source_node_name, rem_node_objid);
+		printf("------@%d send RMT_INT to %d\n", This_Node_Number, source_node_name);
 		rem_queue_objid = op_id_from_name (rem_node_objid, OPC_OBJTYPE_QUEUE, "PGQueue");
 		op_intrpt_schedule_remote(op_sim_time(), This_Node_Number, rem_queue_objid);
+		*/
 		op_pk_destroy(pkptr);
 		break;
 		
@@ -252,9 +298,9 @@ void receive_flit_in_squeue(void){
 	}	
 	
 	flit_counter++;
-	op_stat_write (PGQ_router_handshaking, flit_counter);
+	op_stat_write (PSQ_router_handshaking, flit_counter);
 	
-	printf("op_stat_write\n");
+	// printf("op_stat_write\n");
 	
 	FOUT;
 }
@@ -335,7 +381,7 @@ Yu_wh_psq (OP_SIM_CONTEXT_ARG_OPT)
 				
 				ete_gsh = op_stat_reg ("ETE Delay", OPC_STAT_INDEX_NONE, OPC_STAT_GLOBAL);
 				
-				PGQ_router_handshaking = op_stat_reg ("ACK", OPC_STAT_INDEX_NONE, OPC_STAT_LOCAL);
+				PSQ_router_handshaking = op_stat_reg ("ACK_PSQ_RT", OPC_STAT_INDEX_NONE, OPC_STAT_LOCAL);
 				}
 				FSM_PROFILE_SECTION_OUT (state0_enter_exec)
 
@@ -418,7 +464,7 @@ _op_Yu_wh_psq_terminate (OP_SIM_CONTEXT_ARG_OPT)
 #undef Total_Node_Num
 #undef flit_stat_handler
 #undef flit_counter
-#undef PGQ_router_handshaking
+#undef PSQ_router_handshaking
 #undef Comming_Node_Number
 #undef Worm_Create_Time
 
@@ -502,9 +548,9 @@ _op_Yu_wh_psq_svar (void * gen_ptr, const char * var_name, void ** var_p_ptr)
 		*var_p_ptr = (void *) (&prs_ptr->flit_counter);
 		FOUT
 		}
-	if (strcmp ("PGQ_router_handshaking" , var_name) == 0)
+	if (strcmp ("PSQ_router_handshaking" , var_name) == 0)
 		{
-		*var_p_ptr = (void *) (&prs_ptr->PGQ_router_handshaking);
+		*var_p_ptr = (void *) (&prs_ptr->PSQ_router_handshaking);
 		FOUT
 		}
 	if (strcmp ("Comming_Node_Number" , var_name) == 0)
