@@ -3,7 +3,7 @@
 "comp_trace_info":	"kernel-based"
 "default_site_position_cache_time_granularity":	"0.0"
 "des.log_severity_filter":	"-1"
-"duration":	"2,000.0"
+"duration":	"1,000.0"
 "log_endsim_perf":	"true"
 "log_file":	"project1-scenario1-DES-1"
 "max_log_entries":	"200"

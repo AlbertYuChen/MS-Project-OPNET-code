@@ -15,7 +15,7 @@
 
 
 /* This variable carries the header into the object file */
-const char Yu_wh_psq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A op_runsim_dev 7 552BEDDE 552BEDDE 1 ECE-PHO309-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                              ";
+const char Yu_wh_psq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 5537F32E 5537F32E 1 ECE-PHO309-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
 #include <string.h>
 
 
@@ -165,7 +165,7 @@ void load_Rnode_PSQ(void){
 	// get the routing table file path
 	sprintf(RName, "C:\\Users\\chenyua\\OPNET_Project\\WH_G4x4\\Rnode_%d.txt", This_Node_Number);
 	if (!(Rinfile = fopen(RName, "r"))) {
-		printf("initialize_gen: could not find file");
+		printf("load_Rnode_PSQ: could not find file");
 		exit(-2);
 	}
 	

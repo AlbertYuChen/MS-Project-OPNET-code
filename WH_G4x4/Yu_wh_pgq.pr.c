@@ -15,7 +15,7 @@
 
 
 /* This variable carries the header into the object file */
-const char Yu_wh_pgq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 552C0292 552C0292 1 ECE-PHO309-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
+const char Yu_wh_pgq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 5537F31B 5537F31B 1 ECE-PHO309-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
 #include <string.h>
 
 
@@ -232,15 +232,20 @@ void generate_message(void){
 	Packet * pkptr;
 	// int data_flits_length;
 	int gen_Dest_Node_Number;
- 	int helper;
+// 	int helper;
 	
 	int tmp_type;
 	int tmp_data;
 	
 	FIN(generate_message());
 	
+	do {
+		gen_Dest_Node_Number = (int)op_dist_outcome(Dest_Node_Number_Distr);	
+	}while(gen_Dest_Node_Number == This_Node_Number);
+
 	
-	
+/*
+
 	do {
 		gen_Dest_Node_Number = (int)op_dist_outcome(Dest_Node_Number_Distr) % 2;
 		helper = (int)op_dist_outcome(Dest_Node_Number_Distr) % 2;
@@ -248,7 +253,7 @@ void generate_message(void){
 	}while(gen_Dest_Node_Number == This_Node_Number);
 	
 	
-	/*
+
 	
 	do {
 		gen_Dest_Node_Number = (int)op_dist_outcome(Dest_Node_Number_Distr) % 2;
@@ -258,9 +263,6 @@ void generate_message(void){
 	
 	
 
-	do {
-		gen_Dest_Node_Number = (int)op_dist_outcome(Dest_Node_Number_Distr);	
-	}while(gen_Dest_Node_Number == This_Node_Number);
 
 	
 	
@@ -638,12 +640,12 @@ void initialize_PGQ(void){
 	if (This_Node_Number == 8 || This_Node_Number == 9 || This_Node_Number == 10 ||
 		This_Node_Number == 4 || This_Node_Number == 5 || This_Node_Number == 6 ||
 		This_Node_Number == 0 || This_Node_Number == 1 || This_Node_Number == 2)
-*/
+
 	
 	if (This_Node_Number == 4 || This_Node_Number == 5 ||
 		This_Node_Number == 0 || This_Node_Number == 1)
 		
-	
+	*/
 		
 	// 	|| This_Node_Number == 4 || This_Node_Number == 5 || This_Node_Number == 6 || This_Node_Number == 7)
 		

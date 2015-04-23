@@ -15,7 +15,7 @@
 
 
 /* This variable carries the header into the object file */
-const char Yu_wh_router_proc_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 552D5832 552D5832 1 ECE-PHO309-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
+const char Yu_wh_router_proc_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 5537F318 5537F318 1 ECE-PHO309-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
 #include <string.h>
 
 
@@ -285,7 +285,7 @@ void load_ARnode_routing_table(void) {
 	// get the routing table file path
 	sprintf(RName, "C:\\Users\\chenyua\\OPNET_Project\\WH\\ARnode_%d.txt", This_Node_Number);  // <<<<--------------change work path here
 	if (!(Rinfile = fopen(RName, "r"))) {
-		printf("initialize_gen: could not find file");
+		printf("load_ARnode_routing_table: could not find file");
 		exit(-2);
 	}
 	
@@ -351,7 +351,7 @@ void load_Rnode_routing_table(void) {
 	// get the routing table file path
 	sprintf(RName, "C:\\Users\\chenyua\\OPNET_Project\\WH_G4x4\\Rnode_%d.txt", This_Node_Number);  // <<<<--------------change work path here
 	if (!(Rinfile = fopen(RName, "r"))) {
-		printf("initialize_gen: could not find file");
+		printf("load_Rnode_routing_table: could not find file");
 		exit(-2);
 	}
 	
