@@ -15,7 +15,7 @@
 
 
 /* This variable carries the header into the object file */
-const char Yu_wh_psq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 5537F32E 5537F32E 1 ECE-PHO309-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
+const char Yu_wh_psq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A op_runsim_opt 7 553CE4D6 553CE4D6 1 ECE-PHO309-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                              ";
 #include <string.h>
 
 
@@ -52,6 +52,22 @@ const char Yu_wh_psq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 5537F32E 553
 // definition of statistics parameters
 #define DIFFERENCE_THRESHOULD 0.1
 
+// window length, number of worms within interested range
+#define Window_Len 10000
+
+// statistic variables
+#define ETE_ACC_ERROR 0.001
+
+// explode point is 100 x one worm time, 0.0000018
+#define EXPLODE_POINT 0.000108
+
+double Accumulation_ETE_Delay = 0;
+double Curr_ETED_Ave = 0;
+int valie_worm_counter = 0;
+int Worm_Counter = 0;
+		
+double Anchor_ETED_Ave = 0.000001;
+
 /* End of Header Block */
 
 #if !defined (VOSD_NO_FIN)
@@ -76,20 +92,20 @@ typedef struct
 	int	                    		This_Node_Number                                ;
 	int	                    		Total_Node_Num                                  ;
 	Stathandle	             		flit_stat_handler                               ;
-	double	                 		flit_counter                                    ;
+	double	                 		stat_counter                                    ;
 	Stathandle	             		PSQ_router_handshaking                          ;
-	int	                    		Comming_Node_Number                             ;
 	double	                 		Worm_Create_Time                                ;
+	double	                 		Worm_Gen_Rate                                   ;
 	} Yu_wh_psq_state;
 
 #define ete_gsh                 		op_sv_ptr->ete_gsh
 #define This_Node_Number        		op_sv_ptr->This_Node_Number
 #define Total_Node_Num          		op_sv_ptr->Total_Node_Num
 #define flit_stat_handler       		op_sv_ptr->flit_stat_handler
-#define flit_counter            		op_sv_ptr->flit_counter
+#define stat_counter            		op_sv_ptr->stat_counter
 #define PSQ_router_handshaking  		op_sv_ptr->PSQ_router_handshaking
-#define Comming_Node_Number     		op_sv_ptr->Comming_Node_Number
 #define Worm_Create_Time        		op_sv_ptr->Worm_Create_Time
+#define Worm_Gen_Rate           		op_sv_ptr->Worm_Gen_Rate
 
 /* These macro definitions will define a local variable called	*/
 /* "op_sv_ptr" in each function containing a FIN statement.	*/
@@ -126,8 +142,8 @@ void load_ARnode_PSQ(void){
 	op_ima_obj_attr_get (parentObjid, "name", &parentname);
 	This_Node_Number = atoi(&parentname[5]);
 	
-	// get the routing table file path
-	sprintf(RName, "C:\\Users\\chenyua\\OPNET_Project\\WH\\ARnode_%d.txt", This_Node_Number);
+	// get the routing table file path  C:\Users\chenyua\OPNET_Project\WH_G8x8
+	sprintf(RName, "C:\\Users\\chenyua\\OPNET_Project\\WH_G8x8\\ARnode_%d.txt", This_Node_Number);
 	if (!(Rinfile = fopen(RName, "r"))) {
 		printf("load_ARnode_PSQ: could not find file");
 		exit(-2);
@@ -183,11 +199,19 @@ void load_Rnode_PSQ(void){
 
 void initialize_PSQ(void) {
 	
+	Objid Node_Objid;
+
 	FIN(initialize_PSQ());
 	//
-	flit_counter = 0;
+	stat_counter = 0;
 	
-	load_Rnode_PSQ();
+	Node_Objid = op_topo_parent(op_id_self());
+	
+	op_ima_obj_attr_get (Node_Objid, "Worm_Gen_Rate", &Worm_Gen_Rate);
+	// printf("Worm_Gen_Rate %f\n", Worm_Gen_Rate);
+	
+	load_ARnode_PSQ();
+	// load_Rnode_PSQ();
 	
 	FOUT;
 }
@@ -211,15 +235,67 @@ void discard_rcv_queue(void){
 	FOUT;
 }
 
-void deal_with_statistics(Packet * pkptr){
-	double ete_delay;
+void write_statistics_data(){
+
+	FILE * outfile;
+
+	FIN(write_statistics_data());
+	
+	outfile = fopen("C:\\Users\\chenyua\\OPNET_Project\\WH_G8x8\\stat_result.csv","a");
+	fprintf(outfile,"%.10e, %.10e\n",Worm_Gen_Rate, Curr_ETED_Ave);
+	fclose(outfile);
+
+	FOUT;
+}
+
+void write_statistics_data_explode(){
+
+	FILE * outfile;
+
+	FIN(write_statistics_data());
+	
+	outfile = fopen("C:\\Users\\chenyua\\OPNET_Project\\WH_G8x8\\stat_result.csv","a");
+	fprintf(outfile,"%.10e, -1\n",Worm_Gen_Rate);
+	fclose(outfile);
+
+	FOUT;
+}
+
+void deal_with_statistics(double ete_delay_input){
+
+	double delta = 0;
+	char output[50];
 	
 	FIN(deal_with_statistics());
-	ete_delay = op_sim_time () - op_pk_creation_time_get (pkptr);
-    op_stat_write (ete_gsh, ete_delay);
 	
-	// accumulate the cumulative averrage, if the difference is within threshould, then end the simulation
+	Accumulation_ETE_Delay += ete_delay_input;
+	
+	Curr_ETED_Ave = Accumulation_ETE_Delay / (double)Worm_Counter;
+	
+	delta = (Curr_ETED_Ave - Anchor_ETED_Ave) / Anchor_ETED_Ave;
+	delta = fabs(delta);
+	
+	
+	if(Curr_ETED_Ave > EXPLODE_POINT){
+		write_statistics_data_explode();
+		op_sim_end ("Simulation Explode", "", "", "");
+	}
+	
+	if(delta > ETE_ACC_ERROR){
+		Anchor_ETED_Ave = Curr_ETED_Ave;
+		valie_worm_counter = 0;
+	}else if(valie_worm_counter >= Window_Len){
+		write_statistics_data();
+		snprintf(output,50,"%.10e",Curr_ETED_Ave);
+		op_sim_end ("Finish Simulation!", "saturation point:" , output, "");	
+	}else{
+		valie_worm_counter++;
+	}
+	
 
+	if (op_prg_odb_ltrace_active ("stat") == OPC_TRUE){
+	printf("Worm_Counter:%d Curr_ETED_Ave: %f delta x 1000: %f Anchor_ETED_Ave x 1000: %f\n", Worm_Counter, Curr_ETED_Ave, delta * 1000, Anchor_ETED_Ave * 1000);
+	}
 	FOUT;
 }
 
@@ -228,10 +304,6 @@ void receive_flit_in_squeue(void){
 	int type;
 	int data;
 	double ete_delay;
-
-//	Objid rem_node_objid;
-//	Objid rem_queue_objid;
-//	char source_node_name[64];
 	
 	FIN(receive_flit_in_squeue());
 	
@@ -273,8 +345,6 @@ void receive_flit_in_squeue(void){
 		break;
 		
 		case Flit_Type_Tail:
-		// deal_with_statistics(pkptr);
-		// discard_rcv_queue();
 		
 		ete_delay = op_sim_time() - Worm_Create_Time;
 			
@@ -282,6 +352,9 @@ void receive_flit_in_squeue(void){
 		printf("Worm delay @node%d   :%f\n", This_Node_Number, ete_delay);
 		}
 		
+		// this is a recursive function, will work with the ete_delay data and do the statistic analysis
+		Worm_Counter++;
+		deal_with_statistics(ete_delay);
 		
 		op_stat_write (ete_gsh,	ete_delay);
 		op_pk_destroy(pkptr);
@@ -292,8 +365,8 @@ void receive_flit_in_squeue(void){
 		op_pk_destroy(pkptr);
 	}	
 	
-	flit_counter++;
-	op_stat_write (PSQ_router_handshaking, flit_counter);
+	stat_counter++;
+	op_stat_write (PSQ_router_handshaking, stat_counter);
 	
 	// printf("op_stat_write\n");
 	
@@ -458,10 +531,10 @@ _op_Yu_wh_psq_terminate (OP_SIM_CONTEXT_ARG_OPT)
 #undef This_Node_Number
 #undef Total_Node_Num
 #undef flit_stat_handler
-#undef flit_counter
+#undef stat_counter
 #undef PSQ_router_handshaking
-#undef Comming_Node_Number
 #undef Worm_Create_Time
+#undef Worm_Gen_Rate
 
 #undef FIN_PREAMBLE_DEC
 #undef FIN_PREAMBLE_CODE
@@ -538,9 +611,9 @@ _op_Yu_wh_psq_svar (void * gen_ptr, const char * var_name, void ** var_p_ptr)
 		*var_p_ptr = (void *) (&prs_ptr->flit_stat_handler);
 		FOUT
 		}
-	if (strcmp ("flit_counter" , var_name) == 0)
+	if (strcmp ("stat_counter" , var_name) == 0)
 		{
-		*var_p_ptr = (void *) (&prs_ptr->flit_counter);
+		*var_p_ptr = (void *) (&prs_ptr->stat_counter);
 		FOUT
 		}
 	if (strcmp ("PSQ_router_handshaking" , var_name) == 0)
@@ -548,14 +621,14 @@ _op_Yu_wh_psq_svar (void * gen_ptr, const char * var_name, void ** var_p_ptr)
 		*var_p_ptr = (void *) (&prs_ptr->PSQ_router_handshaking);
 		FOUT
 		}
-	if (strcmp ("Comming_Node_Number" , var_name) == 0)
-		{
-		*var_p_ptr = (void *) (&prs_ptr->Comming_Node_Number);
-		FOUT
-		}
 	if (strcmp ("Worm_Create_Time" , var_name) == 0)
 		{
 		*var_p_ptr = (void *) (&prs_ptr->Worm_Create_Time);
+		FOUT
+		}
+	if (strcmp ("Worm_Gen_Rate" , var_name) == 0)
+		{
+		*var_p_ptr = (void *) (&prs_ptr->Worm_Gen_Rate);
 		FOUT
 		}
 	*var_p_ptr = (void *)OPC_NIL;

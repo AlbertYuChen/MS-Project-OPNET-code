@@ -1,3 +1,5 @@
+# python C:\Users\chenyua\OPNET_Project\python_script\hello.py
+
 import subprocess
 import os
 import shutil
@@ -32,8 +34,17 @@ dstdir = 'C:\\Users\\chenyua\\OPNET_Project\\python_script\\Test\\'
 shutil.copy(srcfile, dstdir)
 
 
+src = 'C:\\Users\\chenyua\\OPNET_Project\\Yu_Chen_SCB\\AD14\\G0\\'
+dest = 'C:\\Users\\chenyua\\OPNET_Project\\python_script\\Test\\test\\'
 
+# shutil.copytree(s, d)
 
+src_files = os.listdir(src)
+print src_files
+for file_name in src_files:
+    full_file_name = os.path.join(src, file_name)
+    if (os.path.isfile(full_file_name)):
+        shutil.copy(full_file_name, dest)
 
 
 

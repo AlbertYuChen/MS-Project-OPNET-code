@@ -161,7 +161,8 @@ def run_sim_once(Ave_Degree, Graph_Number):
 	# Ave_Degree = 4
 	# Graph_Number = 0
 
-	data_folder = 'C:\\Users\\chenyua\\OPNET_Project\\Yu_Chen_SCB\\AD' + `Ave_Degree` + '\\G' + `Graph_Number`
+	data_folder = 'C:\\Users\\chenyua\\OPNET_Project\\UPDOWN\\AD' + `Ave_Degree` + '\\G' + `Graph_Number`
+	# data_folder = 'C:\\Users\\chenyua\\OPNET_Project\\Yu_Chen_SCB\\AD' + `Ave_Degree` + '\\G' + `Graph_Number`
 	sim_folder = 'C:\\Users\\chenyua\\OPNET_Project\\WH_G8x8'
 	
 
@@ -171,7 +172,7 @@ def run_sim_once(Ave_Degree, Graph_Number):
 	WGR_Interval_Left = 1.0
 	WGR_Interval_Right = 1.0
 
-	write_log("\n\n+++++++++++++++++ start simulation of new graph  AD%d  G%d  +++++++++++++++++" % (Ave_Degree, Graph_Number))
+	write_log("\n\n+++++++++++++++++ start simulation of UD new graph  AD%d  G%d  +++++++++++++++++" % (Ave_Degree, Graph_Number))
 	write_log(strftime("%Y-%m-%d_%H-%M-%S", localtime())) 
 
 	copy_sim_files(data_folder, sim_folder)
@@ -179,17 +180,21 @@ def run_sim_once(Ave_Degree, Graph_Number):
 	# if (os.path.isfile(sim_folder + "\\" + stat_result_file)):
 	# 	os.remove(sim_folder + "\\" + stat_result_file)
 
-	empirical_Worm_Gen_Rate = {4:[1, 100, 1000, 105000, 120000], 6:[1, 120, 1200, 12000, 120000]}
+	# empirical_Worm_Gen_Rate = {4:[1, 100, 1000, 105000, 120000], 6:[1.8, 180, 18000, 180000, 230000],\
+	#  8:[2.4, 240, 24000, 235000, 270000],12:[2.6, 260, 26000, 260000, 320000]}
 
-	WGR_Interval_Left = empirical_Worm_Gen_Rate[4][3] # last basic case
-	WGR_Interval_Right = empirical_Worm_Gen_Rate[4][4]	# right most guess
+	empirical_Worm_Gen_Rate = {4:[1, 100, 1000, 60000, 100000], 6:[1.8, 180, 18000, 120000, 230000],\
+	 8:[2.4, 240, 24000, 180000, 270000],12:[2.6, 260, 26000, 220000, 320000]}
+
+	WGR_Interval_Left = empirical_Worm_Gen_Rate[Ave_Degree][3] # last basic case
+	WGR_Interval_Right = empirical_Worm_Gen_Rate[Ave_Degree][4]	# right most guess
 
 	while True:
 
-		if last_sim_saturation_point > 25 * WORM_TIME:
+		if last_sim_saturation_point > 10 * WORM_TIME:
 			break
 
-		if WGR_Interval_Right - WGR_Interval_Left < 0.05:
+		if WGR_Interval_Right - WGR_Interval_Left < 100:
 			break
 
 		if sub_simulation_counter <= 3:
@@ -217,13 +222,13 @@ def run_sim_once(Ave_Degree, Graph_Number):
 
 		sub_simulation_counter = sub_simulation_counter + 1
 
-		send_email()
-
 		# decide the Worm_Gen_Rate
 		last_sim_saturation_point = read_last_sim_saturation_point(sim_folder)
 
 		if sub_simulation_counter > 25:
 			break
+
+		send_email()
 
 
 	last_sim_saturation_point = 0.0
@@ -235,14 +240,18 @@ def run_sim_once(Ave_Degree, Graph_Number):
 
 if __name__ == "__main__":
 
-	# Ave_Degree = 4
+	# Ave_Degree = 8
 	# Graph_Number = 0
 	# run_sim_once(Ave_Degree, Graph_Number)
 
 
 	# for Ave_Degree in [4, 6, 8, 10, 12, 14]:
-	for Ave_Degree in [4]:
-		for Graph_Number in xrange(1, 5):
+	for Ave_Degree in [6, 8]:
+		for Graph_Number in xrange(1, 2):
+			run_sim_once(Ave_Degree, Graph_Number)
+
+	for Graph_Number in xrange(2, 8):
+		for Ave_Degree in [4, 6, 8]:
 			run_sim_once(Ave_Degree, Graph_Number)
 			
 

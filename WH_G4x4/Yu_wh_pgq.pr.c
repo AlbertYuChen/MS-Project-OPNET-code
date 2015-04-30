@@ -15,7 +15,7 @@
 
 
 /* This variable carries the header into the object file */
-const char Yu_wh_pgq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 5537F31B 5537F31B 1 ECE-PHO309-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
+const char Yu_wh_pgq_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A op_runsim_opt 7 553AEE1A 553AEE1A 1 ECE-PHO309-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                              ";
 #include <string.h>
 
 
@@ -372,6 +372,10 @@ void generate_message(void){
 
 	Worm_Counter++;
 	
+	if(Worm_Counter > 50000){
+		op_sim_end ("Memory Overflow!", "", "", "");	
+	}
+	
 	op_stat_write (queue_size, Worm_Counter);
 	
 	if (op_prg_odb_ltrace_active ("SelfIntr3") == OPC_TRUE){
@@ -533,8 +537,8 @@ void load_ARnode_PGQ(void){
 	op_ima_obj_attr_get (parentObjid, "name", &parentname);
 	This_Node_Number = atoi(&parentname[5]);
 	
-	// get the routing table file path
-	sprintf(RName, "C:\\Users\\chenyua\\OPNET_Project\\WH\\ARnode_%d.txt", This_Node_Number);
+	// get the routing table file path  C:\Users\chenyua\OPNET_Project\WH_G8x8
+	sprintf(RName, "C:\\Users\\chenyua\\OPNET_Project\\WH_G8x8\\ARnode_%d.txt", This_Node_Number);
 	if (!(Rinfile = fopen(RName, "r"))) {
 		printf("load_ARnode_PGQ: could not find file");
 		exit(-2);
@@ -590,27 +594,26 @@ void load_Rnode_PGQ(void){
 
 void initialize_PGQ(void){
 
-	Objid myObjid;
+	Objid Node_Objid;
 	
 	FIN(initialize_PGQ());
 	
-	// load_ARnode_PGQ();
-	load_Rnode_PGQ();
+	load_ARnode_PGQ();
+	// load_Rnode_PGQ();
 	
 	// clean number of messages in the queue
 	Worm_Counter = 0;
 	
 	// get the local node number
-	myObjid = op_id_self();
+	Node_Objid = op_topo_parent(op_id_self());
 	
 	// generate the destination node number distribution
 	Dest_Node_Number_Distr = op_dist_load("uniform_int", 0, Total_Node_Num - 1);
 	// Dest_Node_Number_Distr = op_dist_load("uniform_int", 0, 3);
 
 	// get the model attribution variable 
-	op_ima_obj_attr_get (myObjid, "Worm_Gen_Rate", &Worm_Gen_Rate);
-	
-	
+	op_ima_obj_attr_get (Node_Objid, "Worm_Gen_Rate", &Worm_Gen_Rate);
+	// printf("Worm_Gen_Rate:%f\n", Worm_Gen_Rate);
 	
 	Avr_Inter_Arrival_time = 1.0 / Worm_Gen_Rate;
 	
@@ -625,7 +628,8 @@ void initialize_PGQ(void){
 	
 	
 	// worm or message length
-	op_ima_obj_attr_get (myObjid, "Worm_Gen_Len", &Ave_Worm_Gen_Len);
+	op_ima_obj_attr_get (Node_Objid, "Worm_Gen_Len", &Ave_Worm_Gen_Len);
+	
 	// Worm_Len_Distr = op_dist_load("uniform_int", Ave_Worm_Gen_Len, Ave_Worm_Gen_Len);
 	Worm_Gen_Len = Ave_Worm_Gen_Len;
 	

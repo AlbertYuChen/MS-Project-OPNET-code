@@ -15,7 +15,7 @@
 
 
 /* This variable carries the header into the object file */
-const char Yu_wh_router_proc_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A modeler 7 5537F318 5537F318 1 ECE-PHO309-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                                    ";
+const char Yu_wh_router_proc_pr_c [] = "MIL_3_Tfile_Hdr_ 171A 30A op_runsim_opt 7 553AEE1B 553AEE1B 1 ECE-PHO309-01 chenyua 0 0 none none 0 0 none 0 0 0 0 0 0 0 0 2b1a 1                                                                                                                                                                                                                                                                                                                                                                                              ";
 #include <string.h>
 
 
@@ -282,8 +282,8 @@ void load_ARnode_routing_table(void) {
 	op_ima_obj_attr_get (parentObjid, "name", &parentname);
 	This_Node_Number = atoi(&parentname[5]);
 	
-	// get the routing table file path
-	sprintf(RName, "C:\\Users\\chenyua\\OPNET_Project\\WH\\ARnode_%d.txt", This_Node_Number);  // <<<<--------------change work path here
+	// get the routing table file path  C:\Users\chenyua\OPNET_Project\WH_G8x8
+	sprintf(RName, "C:\\Users\\chenyua\\OPNET_Project\\WH_G8x8\\ARnode_%d.txt", This_Node_Number);  // <<<<--------------change work path here
 	if (!(Rinfile = fopen(RName, "r"))) {
 		printf("load_ARnode_routing_table: could not find file");
 		exit(-2);
@@ -421,8 +421,8 @@ void initialize_router(void){
 	// call the routing table initializer here
 	
 	// if(This_Node_Number == 0)
-	// load_ARnode_routing_table();
-	load_Rnode_routing_table();
+	load_ARnode_routing_table();
+	// load_Rnode_routing_table();
 	
 	
 	// connection neighbor map	
