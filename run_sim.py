@@ -137,19 +137,19 @@ def backup_sim_files(data_folder, sim_folder, Ave_Degree, Graph_Number, Worm_Gen
 
 
 	proj_folder = sim_folder + "\\" + project_name + ".project"
-	my_ov_file = proj_folder + "\\" + ov_file + ".ov"
+	# my_ov_file = proj_folder + "\\" + ov_file + ".ov"
 	my_result = sim_folder + "\\" + stat_result_file
 	new_ov_name = "AD" + `Ave_Degree` + "-G" + `Graph_Number` + "-WGR-" +\
 		`Worm_Gen_Rate` + "-" + ov_file + "-" + strftime("%Y-%m-%d_%H-%M-%S", localtime()) +".ov"
 
-	os.rename(my_ov_file, new_ov_name)
+	# os.rename(my_ov_file, new_ov_name)
 
 	result_folder = data_folder + "\\sim_result"
 
 	if not os.path.exists(result_folder):
 		os.makedirs(result_folder)
 
-	shutil.move(new_ov_name, result_folder) # be careful of the name confliction
+	# shutil.move(new_ov_name, result_folder) # be careful of the name confliction
 	shutil.copy(my_result, result_folder) # will overwrite the target file
 
 
@@ -161,8 +161,8 @@ def run_sim_once(Ave_Degree, Graph_Number):
 	# Ave_Degree = 4
 	# Graph_Number = 0
 
-	data_folder = 'C:\\Users\\chenyua\\OPNET_Project\\UPDOWN\\AD' + `Ave_Degree` + '\\G' + `Graph_Number`
-	# data_folder = 'C:\\Users\\chenyua\\OPNET_Project\\Yu_Chen_SCB\\AD' + `Ave_Degree` + '\\G' + `Graph_Number`
+	# data_folder = 'C:\\Users\\chenyua\\OPNET_Project\\UPDOWN\\AD' + `Ave_Degree` + '\\G' + `Graph_Number`
+	data_folder = 'C:\\Users\\chenyua\\OPNET_Project\\Yu_Chen_SCB\\AD' + `Ave_Degree` + '\\G' + `Graph_Number`
 	sim_folder = 'C:\\Users\\chenyua\\OPNET_Project\\WH_G8x8'
 	
 
@@ -172,7 +172,7 @@ def run_sim_once(Ave_Degree, Graph_Number):
 	WGR_Interval_Left = 1.0
 	WGR_Interval_Right = 1.0
 
-	write_log("\n\n+++++++++++++++++ start simulation of UD new graph  AD%d  G%d  +++++++++++++++++" % (Ave_Degree, Graph_Number))
+	write_log("\n\n+++++++++++++++++ start simulation of SCB new graph  AD%d  G%d  +++++++++++++++++" % (Ave_Degree, Graph_Number))
 	write_log(strftime("%Y-%m-%d_%H-%M-%S", localtime())) 
 
 	copy_sim_files(data_folder, sim_folder)
@@ -180,21 +180,24 @@ def run_sim_once(Ave_Degree, Graph_Number):
 	# if (os.path.isfile(sim_folder + "\\" + stat_result_file)):
 	# 	os.remove(sim_folder + "\\" + stat_result_file)
 
-	# empirical_Worm_Gen_Rate = {4:[1, 100, 1000, 105000, 120000], 6:[1.8, 180, 18000, 180000, 230000],\
-	#  8:[2.4, 240, 24000, 235000, 270000],12:[2.6, 260, 26000, 260000, 320000]}
+	empirical_Worm_Gen_Rate = {4:[1, 100, 1000, 105000, 120000], 6:[1.8, 180, 18000, 180000, 230000],\
+	 8:[2.4, 240, 24000, 235000, 270000],\
+	  10:[2.2, 220, 22000, 220000, 300000], 12:[2.6, 260, 26000, 220000, 320000],\
+	 14:[2.6, 260, 26000, 260000, 360000]}
 
-	empirical_Worm_Gen_Rate = {4:[1, 100, 1000, 60000, 100000], 6:[1.8, 180, 18000, 120000, 230000],\
-	 8:[2.4, 240, 24000, 180000, 270000],12:[2.6, 260, 26000, 220000, 320000]}
+	# empirical_Worm_Gen_Rate = {4:[1, 100, 1000, 60000, 100000], 6:[1.8, 180, 18000, 120000, 230000],\
+	#  8:[2.4, 240, 24000, 180000, 270000],12:[2.6, 260, 26000, 220000, 320000]}
 
 	WGR_Interval_Left = empirical_Worm_Gen_Rate[Ave_Degree][3] # last basic case
 	WGR_Interval_Right = empirical_Worm_Gen_Rate[Ave_Degree][4]	# right most guess
 
 	while True:
 
-		if last_sim_saturation_point > 10 * WORM_TIME:
+		if last_sim_saturation_point > 20 * WORM_TIME:
 			break
 
-		if WGR_Interval_Right - WGR_Interval_Left < 100:
+		# if WGR_Interval_Right - WGR_Interval_Left < 100:
+		if WGR_Interval_Right - WGR_Interval_Left < (WGR_Interval_Left + WGR_Interval_Right) / 2 * 0.001:
 			break
 
 		if sub_simulation_counter <= 3:
@@ -246,12 +249,19 @@ if __name__ == "__main__":
 
 
 	# for Ave_Degree in [4, 6, 8, 10, 12, 14]:
-	for Ave_Degree in [6, 8]:
-		for Graph_Number in xrange(1, 2):
+	# for Ave_Degree in [6, 8]:
+	# 	for Graph_Number in xrange(1, 2):
+	# 		run_sim_once(Ave_Degree, Graph_Number)
+
+
+	for Graph_Number in xrange(40, 41):
+		for Ave_Degree in [14]:
+		# for Ave_Degree in [4, 6, 8]:
 			run_sim_once(Ave_Degree, Graph_Number)
 
-	for Graph_Number in xrange(2, 8):
-		for Ave_Degree in [4, 6, 8]:
+	for Graph_Number in xrange(41, 50):
+		for Ave_Degree in [10, 12, 14]:
+		# for Ave_Degree in [4, 6, 8]:
 			run_sim_once(Ave_Degree, Graph_Number)
 			
 
